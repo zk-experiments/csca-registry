@@ -186,15 +186,12 @@ pub fn verify_not_revoked<let H: u32>(
         assert(w.lower_leaf != 0, "lower bound must be a committed leaf");
         assert(w.lower_leaf.lt(target), "lower bound must be below the target");
         assert_eq(w.upper.index, w.lower.index + 1, "bounds must be adjacent");
-        assert(
-            (w.upper_leaf == 0) | target.lt(w.upper_leaf),
-            "upper bound must be above the target",
-        );
     } else {
+        // A zero leaf in slot 0 means the tree is empty (canonical packing).
         assert_eq(w.upper.index, 0, "without a lower bound the upper bound must be slot 0");
-        assert(w.upper_leaf != 0, "empty revocation tree needs no exclusion witness");
-        assert(target.lt(w.upper_leaf), "upper bound must be above the target");
     }
+    // A zero upper leaf is the zero slot past the last leaf (or slot 0 of an empty tree).
+    assert((w.upper_leaf == 0) | target.lt(w.upper_leaf), "upper bound must be above the target");
 }
 
 /// Issuing state from the MRZ as the three-letter code leaves commit to
