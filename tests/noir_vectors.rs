@@ -190,9 +190,18 @@ fn noir_vectors_are_current() {
     if std::env::var_os("UPDATE_NOIR_VECTORS").is_some() {
         std::fs::write(&file, &fresh).unwrap();
     }
+    // `nargo fmt` reflows the generated file (whitespace, trailing commas);
+    // compare modulo both.
+    let squash = |s: &str| {
+        s.split_whitespace()
+            .collect::<String>()
+            .replace(",]", "]")
+            .replace(",}", "}")
+            .replace(",)", ")")
+    };
     let current = std::fs::read_to_string(&file).unwrap_or_default();
     assert!(
-        current == fresh,
+        squash(&current) == squash(&fresh),
         "noir/csca_registry/src/vectors.nr is stale; run UPDATE_NOIR_VECTORS=1 cargo test --test noir_vectors"
     );
 }
