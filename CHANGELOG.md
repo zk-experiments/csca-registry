@@ -2,6 +2,19 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.3.0 - 2026-09-26
+#### Features
+- <span style="background-color: #d73a49; color: white; padding: 2px 6px; border-radius: 3px; font-weight: bold; font-size: 0.85em;">BREAKING</span>ship the Noir registry verifier and match noir-lang Poseidon2 - (b38f6eb) - Anton Velichko
+- <span style="background-color: #d73a49; color: white; padding: 2px 6px; border-radius: 3px; font-weight: bold; font-size: 0.85em;">BREAKING</span>commit the ICAO three-letter country in registry leaves (leaf v2) - (6bd969c) - Anton Velichko
+#### Documentation
+- describe the commitment layout without external references - (3095980) - Anton Velichko
+#### Tests
+- ignore nargo fmt trailing commas in the noir vectors drift check - (0725d70) - Anton Velichko
+#### Refactoring
+- use pso-poseidon 0.5 hash_noir for the noir-compatible sponge - (898deaa) - Anton Velichko
+
+- - -
+
 ## v0.2.0 - 2026-09-26
 #### Features
 - add poseidon2 commitment, rustcrypto verification, clap cli and psonet ci - (c1cb0fa) - Anton Velichko
