@@ -20,7 +20,7 @@ fn poseidon2_matches_pso_poseidon() {
 }
 
 #[test]
-fn pack_matches_zkpassport() {
+fn pack_puts_least_significant_chunk_first() {
     let mut bytes: [u8; 33] = [0; 33];
     for i in 0..33 {
         bytes[i] = (i + 1) as u8;

@@ -1,10 +1,10 @@
 //! Certificate country (alpha-2, from the certificate DN) to the ICAO Doc 9303
 //! three-letter code a circuit compares with the MRZ issuing state.
 //!
-//! ISO 3166-1 rows are generated from `i18n-iso-countries` 7.x (the table
-//! zkpassport uses). ICAO adds codes for issuers that are not ISO countries.
-//! The MRZ writes Germany as `D<<`; circuits normalise that to `DEU` before
-//! comparing, as zkpassport does.
+//! ISO 3166-1 rows are generated from `i18n-iso-countries` 7.x. ICAO adds
+//! codes for issuers that are not ISO countries. The MRZ writes Germany as
+//! `D<<`; circuits normalise that to `DEU` before comparing
+//! (`country_from_mrz` in the Noir library).
 
 /// ICAO issuers without an ISO 3166-1 code, as they appear in CSCA DNs.
 const ICAO_SPECIAL: &[(&str, &str)] = &[
@@ -279,7 +279,7 @@ pub fn alpha3(alpha2: &str) -> Option<&'static str> {
 }
 
 /// Code committed in a registry leaf. Unknown two-letter issuers become
-/// `XX_` (zkpassport's convention): `_` never occurs in an MRZ, so such a key
+/// `XX_`: `_` never occurs in an MRZ issuing state, so such a key
 /// cannot vouch for any document, yet the key stays visible in the registry.
 pub fn leaf_code(alpha2: &str) -> Option<[u8; 3]> {
     if let Some(code) = alpha3(alpha2) {

@@ -1,9 +1,8 @@
 //! Poseidon2 (BN254, noir-compatible) commitment to the registry.
 //!
-//! Layout follows zkpassport's certificate registry (ordered binary Merkle
-//! trees, zero leaf `0`, leaves sorted ascending, `packBeBytesIntoFields`
-//! packing) with a leaf that also commits the key's validity period, so a
-//! circuit can prove "signed by a CSCA key that was valid on date D":
+//! Ordered binary Merkle trees (zero leaf `0`, leaves sorted ascending) whose
+//! key leaves also commit the key's validity period, so a circuit can prove
+//! "signed by a CSCA key that was valid on date D":
 //!
 //! ```text
 //! key_hash   = H(pack(key material))                  RSA modulus | EC x||y
@@ -14,8 +13,8 @@
 //! root       = H(version, keys_root, revocations_root)
 //! ```
 //!
-//! `H` is `std::hash::poseidon2` (sponge, iv = len << 64); `pack` splits
-//! big-endian bytes into 31-byte chunks, least significant chunk first.
+//! `H` is `noir-lang/poseidon`'s `Poseidon2::hash` (see [`poseidon2`]); `pack`
+//! splits big-endian bytes into 31-byte chunks, least significant chunk first.
 
 use anyhow::{bail, Context, Result};
 use ark_bn254::Fr;
@@ -24,7 +23,7 @@ use pso_poseidon::Poseidon2;
 
 /// Leaf/root format version.
 pub const LEAF_VERSION: u8 = 2;
-/// Certificate type committed in key leaves (zkpassport's `CERT_TYPE_CSCA`).
+/// Certificate type committed in key leaves (1 = CSCA).
 pub const CERT_TYPE_CSCA: u8 = 1;
 /// Key tree height (65 536 leaves).
 pub const KEY_TREE_HEIGHT: usize = 16;
@@ -66,7 +65,7 @@ pub fn poseidon2(inputs: &[Fr]) -> Fr {
     state[0]
 }
 
-/// zkpassport `packBeBytesIntoFields(bytes, 31)`: 31-byte big-endian chunks,
+/// Packs big-endian bytes into fields: 31-byte big-endian chunks,
 /// the short chunk taken from the front, least significant chunk at index 0.
 pub fn pack_be(bytes: &[u8]) -> Vec<Fr> {
     let first = match bytes.len() % 31 {
@@ -285,7 +284,9 @@ pub struct Exclusion {
 }
 
 impl Exclusion {
-    /// Checks the bracket against `root` (zkpassport's verification rules).
+    /// Checks the bracket against `root`: both paths reach it, the slots are
+    /// adjacent, and the leaves strictly bound `target` (upper may be the zero
+    /// slot past the end; without a lower bound, upper must be slot 0).
     pub fn verify(&self, root: Fr) -> bool {
         let zero = Fr::from(0u64);
         if self.upper.root() != root {
@@ -341,7 +342,7 @@ mod tests {
     }
 
     #[test]
-    fn pack_matches_zkpassport() {
+    fn pack_puts_least_significant_chunk_first() {
         // 33 bytes: front 2-byte chunk is the most significant field (index 1).
         let bytes: Vec<u8> = (1..=33).collect();
         let f = pack_be(&bytes);

@@ -25,7 +25,7 @@ pub enum VerifyError {
     Invalid,
 }
 
-/// Digest algorithms. `id` matches zkpassport's canonical hash identifiers.
+/// Digest algorithms.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum Hash {

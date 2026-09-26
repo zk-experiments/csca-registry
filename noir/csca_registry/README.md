@@ -15,7 +15,7 @@ All hashing is `H(x₁…xₙ) = Poseidon2::hash([x₁…xₙ], n)` from `noir-l
 
 | value | definition |
 |---|---|
-| `pack_be(b)` | zkpassport `packBeBytesIntoFields(b, 31)`: 31-byte big-endian chunks, short chunk from the front, least significant chunk first |
+| `pack_be(b)` | 31-byte big-endian chunks, short chunk taken from the front, least significant chunk first |
 | `key_hash` | `H(pack_be(key))`; key = RSA modulus (big-endian, no leading zeros) or EC `x ‖ y` (each padded to the field size) |
 | `header_field` | the 29 bytes `version(2) ‖ type(1) ‖ country[3] ‖ key_type ‖ curve ‖ bits[2] ‖ exponent[4] ‖ open[8] ‖ close[8]` read as one big-endian integer |
 | key leaf | `H(header_field, key_hash)`; one leaf per (key, validity period) |

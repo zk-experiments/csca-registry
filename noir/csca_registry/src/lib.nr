@@ -74,7 +74,7 @@ pub fn hash<let L: u32>(inputs: [Field; L]) -> Field {
     Poseidon2::hash(inputs, L)
 }
 
-/// zkpassport `packBeBytesIntoFields(bytes, 31)`: big-endian 31-byte chunks,
+/// Packs big-endian bytes into fields: 31-byte big-endian chunks,
 /// the short chunk taken from the front, least significant chunk at index 0.
 /// `M` must be `(N + 30) / 31`.
 pub fn pack_be<let N: u32, let M: u32>(bytes: [u8; N]) -> [Field; M] {
