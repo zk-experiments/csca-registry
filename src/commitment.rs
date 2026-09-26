@@ -1,44 +1,44 @@
 //! Poseidon2 (BN254, noir-compatible) commitment to the registry.
 //!
-//! Layout follows zkpassport's certificate registry (ordered binary Merkle
-//! trees, zero leaf `0`, leaves sorted ascending, `packBeBytesIntoFields`
-//! packing) with a leaf that also commits the key's validity period, so a
-//! circuit can prove "signed by a CSCA key that was valid on date D":
+//! Ordered binary Merkle trees (zero leaf `0`, leaves sorted ascending) whose
+//! key leaves also commit the key's validity period, so a circuit can prove
+//! "signed by a CSCA key that was valid on date D":
 //!
 //! ```text
 //! key_hash   = H(pack(key material))                  RSA modulus | EC x||y
 //! key leaf   = H(header, key_hash)                    one per (key, period)
-//! header     = be(version:1 | type=1:1 | country:2 | key_type:1 | curve:1
-//!                 | bits:2 | exponent:4 | open:8 | close:8)       28 bytes
+//! header     = be(version:1 | type=1:1 | country:3 | key_type:1 | curve:1
+//!                 | bits:2 | exponent:4 | open:8 | close:8)       29 bytes
 //! revocation = H(issuer key_hash, H(pack(serial)))
 //! root       = H(version, keys_root, revocations_root)
 //! ```
 //!
-//! `H` is `std::hash::poseidon2` (sponge, iv = len << 64); `pack` splits
-//! big-endian bytes into 31-byte chunks, least significant chunk first.
+//! `H` is `noir-lang/poseidon`'s `Poseidon2::hash` (see [`poseidon2`]); `pack`
+//! splits big-endian bytes into 31-byte chunks, least significant chunk first.
 
 use anyhow::{bail, Context, Result};
 use ark_bn254::Fr;
 use ark_ff::{BigInteger, PrimeField};
-use pso_poseidon::{Poseidon2, PoseidonHasher};
+use pso_poseidon::Poseidon2;
 
 /// Leaf/root format version.
-pub const LEAF_VERSION: u8 = 1;
-/// Certificate type committed in key leaves (zkpassport's `CERT_TYPE_CSCA`).
+pub const LEAF_VERSION: u8 = 2;
+/// Certificate type committed in key leaves (1 = CSCA).
 pub const CERT_TYPE_CSCA: u8 = 1;
 /// Key tree height (65 536 leaves).
 pub const KEY_TREE_HEIGHT: usize = 16;
 /// Revocation tree height (16 384 leaves).
 pub const REVOCATION_TREE_HEIGHT: usize = 14;
 
-/// Poseidon2 sponge over BN254, bit-identical to noir's `poseidon2::hash`.
+/// Poseidon2 sponge over BN254, bit-identical to `noir-lang/poseidon`'s
+/// `Poseidon2::hash(input, len)` (and Barretenberg): `pso-poseidon`'s
+/// [`Poseidon2::hash_noir`]. Not `PoseidonHasher::hash`, whose extra final
+/// permutation differs whenever the input length is a multiple of 3.
 pub fn poseidon2(inputs: &[Fr]) -> Fr {
-    Poseidon2::<Fr>::new()
-        .hash(inputs)
-        .expect("the Poseidon2 sponge is infallible")
+    Poseidon2::<Fr>::new().hash_noir(inputs)
 }
 
-/// zkpassport `packBeBytesIntoFields(bytes, 31)`: 31-byte big-endian chunks,
+/// Packs big-endian bytes into fields: 31-byte big-endian chunks,
 /// the short chunk taken from the front, least significant chunk at index 0.
 pub fn pack_be(bytes: &[u8]) -> Vec<Fr> {
     let first = match bytes.len() % 31 {
@@ -68,8 +68,8 @@ pub fn key_hash(material: &[u8]) -> Fr {
 /// Fields of a key leaf besides the key itself.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct KeyHeader {
-    /// Upper-case alpha-2 country.
-    pub country: [u8; 2],
+    /// ICAO three-letter country code (ISO alpha-3, or an ICAO issuer code).
+    pub country: [u8; 3],
     /// 1 = RSA, 2 = EC.
     pub key_type: u8,
     /// Curve id (`crypto::Curve::id`), 0 for RSA.
@@ -92,6 +92,7 @@ impl KeyHeader {
             CERT_TYPE_CSCA,
             self.country[0],
             self.country[1],
+            self.country[2],
             self.key_type,
             self.curve,
         ];
@@ -256,7 +257,9 @@ pub struct Exclusion {
 }
 
 impl Exclusion {
-    /// Checks the bracket against `root` (zkpassport's verification rules).
+    /// Checks the bracket against `root`: both paths reach it, the slots are
+    /// adjacent, and the leaves strictly bound `target` (upper may be the zero
+    /// slot past the end; without a lower bound, upper must be slot 0).
     pub fn verify(&self, root: Fr) -> bool {
         let zero = Fr::from(0u64);
         if self.upper.root() != root {
@@ -302,10 +305,17 @@ mod tests {
         // Same known answer pso-poseidon locks against `nargo execute`.
         let h: Fr = MontFp!("0x038682aa1cb5ae4e0a3f13da432a95c77c5c111f6f030faf9cad641ce1ed7383");
         assert_eq!(poseidon2(&[Fr::from(1u64), Fr::from(2u64)]), h);
+        // len % 3 == 0: no trailing permutation (`nargo test` prints this value
+        // for noir-lang/poseidon v0.3.0 `Poseidon2::hash([1, 2, 3], 3)`).
+        let h3: Fr = MontFp!("0x23864adb160dddf590f1d3303683ebcb914f828e2635f6e85a32f0a1aecd3dd8");
+        assert_eq!(
+            poseidon2(&[Fr::from(1u64), Fr::from(2u64), Fr::from(3u64)]),
+            h3
+        );
     }
 
     #[test]
-    fn pack_matches_zkpassport() {
+    fn pack_puts_least_significant_chunk_first() {
         // 33 bytes: front 2-byte chunk is the most significant field (index 1).
         let bytes: Vec<u8> = (1..=33).collect();
         let f = pack_be(&bytes);

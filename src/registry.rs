@@ -324,7 +324,9 @@ impl Builder {
             keys.push(Key {
                 id,
                 country: cert.country.clone(),
+                country_code: String::from_utf8_lossy(&header.country).into_owned(),
                 description: key.describe(),
+                public_key: hex::encode(key.material()),
                 key_hash: commitment::to_hex(&key_hash),
                 key_type: header.key_type,
                 curve: header.curve,
@@ -536,8 +538,7 @@ fn scheme_name(c: &Cert) -> String {
 
 /// Leaf header without the period; `None` for keys a leaf cannot encode.
 fn header_base(country: &str, key: &PublicKey) -> Option<KeyHeader> {
-    let c = country.as_bytes();
-    let [c0, c1] = c else { return None };
+    let [c0, c1, c2] = crate::country::leaf_code(country)?;
     let (key_type, curve, exponent) = match key {
         PublicKey::Rsa { e, .. } => {
             if e.len() > 4 {
@@ -551,7 +552,7 @@ fn header_base(country: &str, key: &PublicKey) -> Option<KeyHeader> {
         PublicKey::Ec { curve: None, .. } => return None,
     };
     Some(KeyHeader {
-        country: [*c0, *c1],
+        country: [c0, c1, c2],
         key_type,
         curve,
         bits: u16::try_from(key.bits()).ok()?,

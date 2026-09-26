@@ -10,8 +10,6 @@ A deduplicated, signature-checked list of the **Country Signing CA (CSCA)** cert
 
 It is the first building block for verifying encrypted identity-document envelopes on-chain. A circuit proves "the document was signed under a CSCA key that was valid on date D and the DSC is not revoked", against the registry `root`.
 
-Reference: [zkpassport/circuits](https://github.com/zkpassport/circuits) and [zkpassport/registry](https://github.com/zkpassport/registry). The tree layout and packing follow zkpassport's certificate registry.
-
 ## Usage
 
 ```sh
@@ -94,17 +92,19 @@ The output is deterministic for the same inputs. It has these sections:
 ```text
 key_hash   = H(pack(key material))           RSA modulus | EC x||y
 key leaf   = H(header, key_hash)             one leaf per (key, period)
-header     = be(version:1 | type=1:1 | country:2 | key_type:1 | curve:1
+header     = be(version:2 | type=1:1 | country:3 | key_type:1 | curve:1
                 | bits:2 | exponent:4 | open:8 | close:8)
 revocation = H(issuer key_hash, H(pack(serial)))
 root       = H(version, keys_root, revocations_root)
 ```
 
-- `H` is noir's `std::hash::poseidon2`.
-- `pack` is zkpassport's `packBeBytesIntoFields(bytes, 31)`.
+- `H` is `Poseidon2::hash` from `noir-lang/poseidon` v0.3.0, the sponge Barretenberg uses; the Rust side calls `pso-poseidon`'s `Poseidon2::hash_noir` (0.5+), not its `hash`, which differs when the input length is a multiple of 3.
+- Circuits verify against the commitment with the Noir library in [`noir/csca_registry`](noir/csca_registry/README.md); import it by git tag, never re-implement the leaf.
+- `pack` splits big-endian bytes into 31-byte chunks, the short chunk taken from the front, least significant chunk first.
 - Leaves are sorted ascending; empty slots are zero.
-- Revocation non-membership is proven by two adjacent leaves bracketing the target, using zkpassport's rules.
+- Revocation non-membership is proven by the two adjacent committed leaves that bracket the target; the exact rules are in the [Noir library README](noir/csca_registry/README.md).
 - Curve ids are rows of `src/crypto/curves.rs` + 1. For example, 18 = brainpoolP512r1.
+- `country` is the ICAO three-letter code a circuit compares with the MRZ issuing state (`src/country.rs`: ISO 3166-1 alpha-3 plus ICAO issuer codes such as `EUE`, `UNO`, `RKS`, `XOM`; the MRZ writes Germany as `D<<`, which circuits normalise to `DEU`). An issuer without a code is committed as `XX_`, which can never match an MRZ.
 
 **Validity on date D:** the document is valid if all of these hold:
 - the document's expiry (DG1) is on or after D;

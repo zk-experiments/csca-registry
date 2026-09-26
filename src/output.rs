@@ -156,10 +156,14 @@ pub struct KeyInfo {
 pub struct Key {
     /// sha256 of the key material.
     pub id: String,
-    /// Alpha-2.
+    /// Alpha-2, as in the certificate.
     pub country: String,
+    /// ICAO three-letter code committed in the leaf.
+    pub country_code: String,
     /// e.g. `EC-brainpoolP512r1`.
     pub description: String,
+    /// Key material the leaf commits to, hex: RSA modulus, or EC `x || y`.
+    pub public_key: String,
     /// Poseidon2 key hash.
     pub key_hash: String,
     /// 1 = RSA, 2 = EC.

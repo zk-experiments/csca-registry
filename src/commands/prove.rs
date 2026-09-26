@@ -18,10 +18,14 @@ pub struct KeyProof {
     pub keys_root: String,
     /// Revocation tree root (for recomputing `root`).
     pub revocations_root: String,
+    /// Key material, hex (RSA modulus or EC `x || y`).
+    pub public_key: String,
     /// Poseidon2 key hash.
     pub key_hash: String,
     /// Country, alpha-2.
     pub country: String,
+    /// ICAO three-letter code committed in the leaf.
+    pub country_code: String,
     /// 1 = RSA, 2 = EC.
     pub key_type: u8,
     /// Curve id.
@@ -99,6 +103,10 @@ pub fn handle_verify(path: &Path) -> Result<Registry> {
     }
     for k in &reg.keys {
         let key_hash = commitment::from_hex(&k.key_hash)?;
+        let material = hex::decode(&k.public_key).context("public_key hex")?;
+        if commitment::key_hash(&material) != key_hash {
+            bail!("key {} public_key does not reproduce its key_hash", k.id);
+        }
         for p in &k.periods {
             let leaf = commitment::key_leaf(&header(k, p.open, p.close)?, key_hash);
             if commitment::to_hex(&leaf) != p.leaf {
@@ -133,8 +141,10 @@ pub fn prove_key(reg: &Registry, key: &str, at: i64) -> Result<KeyProof> {
         root: commitment::to_hex(&commitment::state_root(tree.root(), revs.root())),
         keys_root: commitment::to_hex(&tree.root()),
         revocations_root: commitment::to_hex(&revs.root()),
+        public_key: k.public_key.clone(),
         key_hash: k.key_hash.clone(),
         country: k.country.clone(),
+        country_code: k.country_code.clone(),
         key_type: k.key_type,
         curve: k.curve,
         bits: k.bits,
@@ -198,11 +208,15 @@ fn normalize_hex(s: &str) -> String {
 }
 
 fn header(k: &Key, open: i64, close: i64) -> Result<KeyHeader> {
-    let [c0, c1] = k.country.as_bytes() else {
-        bail!("key {} country {} is not alpha-2", k.id, k.country);
+    let [c0, c1, c2] = k.country_code.as_bytes() else {
+        bail!(
+            "key {} country code {} is not three letters",
+            k.id,
+            k.country_code
+        );
     };
     Ok(KeyHeader {
-        country: [*c0, *c1],
+        country: [*c0, *c1, *c2],
         key_type: k.key_type,
         curve: k.curve,
         bits: k.bits,

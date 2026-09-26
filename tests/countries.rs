@@ -82,9 +82,16 @@ fn check_country(reg: &Registry, cc: &str) -> Result<(), Failed> {
 
     for k in reg.keys.iter().filter(|k| k.country == cc) {
         ensure(!k.periods.is_empty(), format!("key {} has no period", k.id))?;
+        ensure(
+            k.country_code.bytes().all(|b| b.is_ascii_uppercase()),
+            format!(
+                "country {} has no ICAO code (committed as {})",
+                k.country, k.country_code
+            ),
+        )?;
         let key_hash = commitment::from_hex(&k.key_hash).map_err(|e| e.to_string())?;
-        let [c0, c1] = k.country.as_bytes() else {
-            return Err(format!("country {} is not alpha-2", k.country).into());
+        let [c0, c1, c2] = k.country_code.as_bytes() else {
+            return Err(format!("country code {} is not three letters", k.country_code).into());
         };
         for (i, p) in k.periods.iter().enumerate() {
             ensure(
@@ -98,7 +105,7 @@ fn check_country(reg: &Registry, cc: &str) -> Result<(), Failed> {
                 )?;
             }
             let header = KeyHeader {
-                country: [*c0, *c1],
+                country: [*c0, *c1, *c2],
                 key_type: k.key_type,
                 curve: k.curve,
                 bits: k.bits,

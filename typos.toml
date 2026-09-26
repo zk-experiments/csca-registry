@@ -9,6 +9,9 @@ extend-exclude = [
   "Cargo.lock",
   "tests/fixtures/**",
   "src/crypto/curves.rs",
+  # ISO 3166 / ICAO codes read as misspellings (BA, CAF, NAM, …).
+  "src/country.rs",
+  "noir/csca_registry/src/vectors.nr",
 ]
 
 [default]
