@@ -1,74 +1,162 @@
 # csca-registry
 
-Builds one deduplicated, signature-checked list of eMRTD **CSCA** certificates (passports,
-ID/residence cards) from ICAO PKD and national master lists, with validity windows per
-certificate and merged per public key. First building block for verifying encrypted
-document envelopes on-chain: the circuit proves "signed by a CSCA key that was valid on
-date D", and this registry is where those keys and dates come from.
+[![CI](https://github.com/zk-experiments/csca-registry/actions/workflows/ci.yml/badge.svg)](https://github.com/zk-experiments/csca-registry/actions/workflows/ci.yml)
 
-Reference: [zkpassport/circuits](https://github.com/zkpassport/circuits) (`src/rust/masterlist-interpreter`)
-and [zkpassport/registry](https://github.com/zkpassport/registry).
+A deduplicated, signature-checked list of the **Country Signing CA (CSCA)** certificates
+behind passports, ID and residence cards (eMRTDs), built from ICAO PKD and national master lists.
+It has three parts:
+
+- **Validity periods** per public key, as `[open, close]` pairs.
+- **Per-country profiles** of the key types and signature schemes each country uses.
+- **A Poseidon2 Merkle commitment** over keys and revocations. Poseidon2 here is BN254 and
+  noir-compatible, via [`pso-poseidon`](https://github.com/psonet/pso-poseidon).
+
+It is the first building block for verifying encrypted identity-document envelopes on-chain.
+A circuit proves "the document was signed under a CSCA key that was valid on date D and the
+DSC is not revoked", against the registry `root`.
+
+Reference: [zkpassport/circuits](https://github.com/zkpassport/circuits) and
+[zkpassport/registry](https://github.com/zkpassport/registry). The tree layout and packing follow
+zkpassport's certificate registry.
 
 ## Usage
 
 ```sh
-./scripts/fetch.sh                        # DE (BSI) + IT master lists, IT CRL -> sources/auto/
+./scripts/fetch.sh                                  # DE (BSI) + IT master lists, IT CRL -> sources/auto/
 # optional: ICAO PKD LDIFs (captcha + T&C, manual) -> sources/icao/
-#   https://pkddownload.icao.int  "eMRTD CSCA ML" and "eMRTD PKI Objects" (for CRLs)
-cargo run --release -- sources -o registry.json
-cargo test
+#   https://pkddownload.icao.int  "eMRTD CSCA ML" (master lists)
+#                                 "eMRTD PKI Objects" (CRLs + DSCs -> dsc_* country profile)
+cargo run --release -- build sources -o registry.json
+cargo run --release -- verify --registry registry.json
+cargo run --release -- prove key --key <key id | key_hash> --at <unix seconds>
+cargo run --release -- prove not-revoked --issuer-key <key id> --serial <hex>
 ```
 
-macOS: if the openssl crate can't find OpenSSL, `export OPENSSL_DIR=$(brew --prefix openssl@3)`.
+`prove` prints JSON with the leaf inputs, the leaf, its index and siblings, plus both roots.
 
 ## Inputs
 
 | file | handling |
 |---|---|
-| `XX_*.ml` | CMS master list; `XX` (file-name prefix) = publisher country |
-| `*.ldif` | ICAO PKD: master lists (publisher = `c=` in the DN) and CRLs; DSC entries skipped |
-| `*.crl` | CRL (DER/PEM) |
-| `*.cer/.crt/.der/.pem` | loose certificates, trusted as operator-provided (`status: manual`) |
+| `XX_*.ml` | CMS master list. The file-name prefix `XX` is the publisher country. |
+| `*.ldif` | ICAO PKD export: master lists (publisher = `c=` in the DN), CRLs, and DSCs (counted for the country profile only). |
+| `*.crl` | CRL, DER or PEM. |
+| `*.cer/.crt/.der/.pem` | Loose certificates, trusted as operator-provided (`status: manual`). |
 
 ## Trust model
 
-A master list is accepted only if
-1. the CMS signature over its content verifies, and
-2. the ML signer certificate is signed by a key of a publisher-country CSCA **contained in that list**.
+A master list contributes certificates only if both checks pass:
 
-Rejected lists are reported in `sources[]` with the reason and contribute nothing.
-(2) is self-referential, so the real assurance is corroboration: each certificate records
-every source that listed it (`sources[]`); with DE + IT today 585/693 certs are in both.
-Pin publisher anchors (`sources[].anchor`) out-of-band when that is not enough.
+1. The CMS signature verifies. With signed attributes, the `messageDigest` must match the
+   content and `contentType` must be `id-icao-cscaMasterList`.
+2. The signer certificate is signed by a key of a publisher-country CSCA **contained in that list**.
 
-Chain checks are done by hand, not with `X509_verify_cert`: OpenSSL 3 rejects keys with
-explicit EC parameters (`X509_V_ERR_EC_KEY_EXPLICIT_PARAMS`), and several CSCAs (DE, LT, …) use them.
+Rejected lists stay in `sources[]` with the reason. Check 2 is self-referential, so the real
+assurance comes from two things:
 
-CRLs are applied only if signed by a CSCA in the registry.
+- **Corroboration:** every certificate lists every source that carried it.
+- **Pinning:** publisher anchors (`sources[].anchor`) can be pinned out of band.
 
-## Output (`registry.json`, deterministic for the same inputs)
+With DE + IT today, 585 of 693 certificates are in both lists.
 
-- `certificates[]` — one per unique DER (`fingerprint` = sha256):
-  `country`, `kind` (`root` self-signed | `link` signed by another listed CSCA | `orphan`
-  issuer not in registry, typically a link cert from a retired key), `key` {`id`, `type`, `bits`,
-  `curve` — explicit params resolved to the named curve}, `not_before`/`not_after`,
-  `private_key_usage_period` (when the CSCA may issue DSCs), `revoked_at`, `sources`.
-- `keys[]` — per public key (`id` = sha256 of RSA modulus / uncompressed EC point):
-  `periods` = union of the validity windows of every cert carrying that key, as disjoint
-  `[open, close]` unix-second pairs (close is cut at `revoked_at`).
-- `revocations[]` — (`issuer_fingerprint`, `serial`, `revoked_at`) from verified CRLs;
-  mostly DSC serials, i.e. what an on-chain check needs to reject revoked DSCs.
-- `sources[]` — every input with sha256, status, and for master lists the anchor CSCA.
+Chains are resolved by hand. An issuer is looked up by canonical DN and by AKI→SKI match, and
+then its signature must verify. `certificates[].chain` records the result:
 
-## Validity on date D (for the circuit side)
+| `chain` | meaning |
+|---|---|
+| `verified` | The issuer's signature checks out. |
+| `issuer-missing` | No source carries the issuer, usually a link certificate from a retired key. Still trusted via the signed list that carried it. |
+| `invalid` / `unsupported` | The certificate's own issuer (AKI-matched, or itself when self-signed) failed or could not be checked. The per-country tests fail on either. |
 
-Document valid on D ⇔ document expiry (DG1) ≥ D, SOD signed by a DSC, the DSC signed by a
-key in `keys[]` with D (or, under ICAO's chain model, the DSC's `not_before`) inside one of
-its `periods`, and the DSC serial not in `revocations[]` for that issuer.
+CRLs are applied only if a registry key verifies them.
 
-## Not done yet
+## Cryptography
 
-- Poseidon/Merkle commitment of `keys[]` + `revocations[]` for the circuit (zkpassport's
-  `certificate_root` layout is the reference).
-- Scheduled CI refresh; ICAO LDIF path has unit coverage only, not yet run on a real PKD dump.
-- More national sources: add a `curl` line to `scripts/fetch.sh` (file name must start with the country code).
+Everything is Rust; OpenSSL is banned in `deny.toml`, as in psonet:
+
+| scheme | crate |
+|---|---|
+| RSA PKCS#1 v1.5 and PSS (any salt, SHA-1/2) | `rsa` |
+| ECDSA on P-256/384/521 | `p256`, `p384`, `p521` |
+| ECDSA on brainpoolP256r1/P384r1 | `bp256`, `bp384` |
+| ECDSA on brainpoolP512r1 | `src/crypto/bp512.rs` (built from RustCrypto's `primefield` + `primeorder`, as `bp384` is) |
+
+X9.62 DER and BSI plain `r||s` signature encodings are both accepted. Keys with explicit curve
+parameters, common among CSCAs, are matched to their named curve by domain parameters.
+`ring` alone isn't enough: it has no brainpool and no P-521 support, and its PSS verification
+only accepts salt length equal to the hash length.
+
+## Output (`registry.json`)
+
+The output is deterministic for the same inputs. It has these sections:
+
+- `commitment`: `root`, `keys_root`, `revocations_root`, and the tree heights (16 and 14).
+- `countries.XX`: the country's key and signature profile.
+  - `csca_keys` / `csca_signature_schemes`: CSCA key types and the schemes CSCAs sign with.
+    These schemes are how DSCs are signed.
+  - `dsc_keys` / `dsc_signature_schemes`: DSC key types and schemes. The DSC key signs the
+    document's SOD, so these are the schemes found in issued documents. Only present when ICAO
+    PKD "PKI Objects" LDIFs are among the inputs.
+- `certificates[]`: fingerprint, country, `kind` (root/link/orphan), `chain`, `signature_scheme`,
+  key, validity, `private_key_usage_period`, `revoked_at`, `sources`.
+- `keys[]`: one entry per public key.
+  - `key_hash`: Poseidon2 of the key material.
+  - Leaf header fields.
+  - `periods[]`: disjoint `[open, close]` windows, each with its `leaf` and `index`.
+- `revocations[]`: `(issuer key, serial)` pairs from verified CRLs, each with its `leaf` and `index`.
+- `sources[]`: every input with its sha256, status, anchor and signer scheme.
+
+## Commitment
+
+```text
+key_hash   = H(pack(key material))           RSA modulus | EC x||y
+key leaf   = H(header, key_hash)             one leaf per (key, period)
+header     = be(version:1 | type=1:1 | country:2 | key_type:1 | curve:1
+                | bits:2 | exponent:4 | open:8 | close:8)
+revocation = H(issuer key_hash, H(pack(serial)))
+root       = H(version, keys_root, revocations_root)
+```
+
+- `H` is noir's `std::hash::poseidon2`.
+- `pack` is zkpassport's `packBeBytesIntoFields(bytes, 31)`.
+- Leaves are sorted ascending; empty slots are zero.
+- Revocation non-membership is proven by two adjacent leaves bracketing the target, using
+  zkpassport's rules.
+- Curve ids are rows of `src/crypto/curves.rs` + 1. For example, 18 = brainpoolP512r1.
+
+**Validity on date D:** the document is valid if all of these hold:
+- the document's expiry (DG1) is on or after D;
+- the SOD is signed by a DSC;
+- the DSC is signed by a key whose leaf has `open ≤ D ≤ close`, or `open ≤ DSC.not_before ≤ close`
+  under ICAO's chain model;
+- `prove not-revoked` holds for the DSC serial under that key.
+
+## Development
+
+The conventions are psonet's:
+
+- **Toolchain:** pinned in `rust-toolchain.toml` (1.94).
+- **Lints:** lint levels live in `Cargo.toml` `[lints]`, and CI adds pso-poseidon's clippy code-smell set.
+- **Tests:** `cargo nextest` with `.config/nextest.toml`.
+- **Supply chain:** `cargo deny` and `cargo audit` both gate. The one documented ignore is in
+  `deny.toml` and `.cargo/audit.toml`.
+- **Spelling:** `typos`.
+- **Commits and releases:** conventional commits, checked by commitlint. `cog` bumps the version
+  and tags on `main`, and the tag release attaches the binaries, a freshly built
+  `registry.json`, and `SHA256SUMS`.
+
+```sh
+cargo nextest run              # unit + synthetic PKI + one test per country (fixtures)
+CSCA_SOURCES=sources cargo nextest run --test countries   # same checks on a fresh download
+cargo deny check && cargo audit
+```
+
+Tests:
+
+- **`tests/countries.rs`:** one trial per country found in the sources. It checks that each
+  country has keys; that there are no `invalid` or `unsupported` chains; that periods are
+  ordered and disjoint; that every leaf recomputes and proves into `root`; and that the
+  signature profile is non-empty. CI also runs it nightly against the live downloads.
+- **`tests/synthetic.rs`:** a generated PKI (`tests/fixtures/synthetic/gen.py`) covering the LDIF
+  path, a forged master list, RSA-PSS, explicit-parameter brainpoolP512r1, link certificates,
+  CRL → revocation, and the proofs.

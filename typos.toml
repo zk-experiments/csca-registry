@@ -1,0 +1,18 @@
+# typos (https://github.com/crate-ci/typos) configuration.
+#
+# Entries are checked false positives from a real run, not guesses.
+
+[files]
+extend-exclude = [
+  # cocogitto writes a short SHA into every changelog line.
+  "CHANGELOG.md",
+  "Cargo.lock",
+  "tests/fixtures/**",
+  "src/crypto/curves.rs",
+]
+
+[default]
+extend-ignore-re = [
+  # Hex constants (curve parameters, hashes, key ids).
+  "\\b[0-9a-fA-F]{16,}\\b",
+]

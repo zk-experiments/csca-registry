@@ -1,0 +1,391 @@
+# CI + release for csca-registry. Shape follows psonet/pso-poseidon (lint /
+# test / cog tag / release) with psonet/pso-integration's supply-chain, typos
+# and `ci` aggregator jobs.
+#
+#   lint ─┐
+#   test ─┼─> ci ──> tag (cog, push:main) ──> release-binaries ──> github-release
+#   typos ┤                                   release-registry ─┘
+#   supply-chain
+#
+# Triggers
+#   push:main         full pipeline incl. cog auto-bump and, when cog tagged, release
+#   push:tags:["v*"]  release-only path against the named tag
+#   pull_request      lint/test/typos/supply-chain + commitlint
+#   schedule          nightly 04:00 UTC: supply-chain (fresh advisories) and
+#                     live-sources (per-country suite against today's downloads)
+#   workflow_dispatch maintainer-named (re-)release; empty `tag` runs the main pipeline
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "0 4 * * *"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: >-
+          Existing tag to (re-)release (e.g. "v0.2.0"). Empty input runs the
+          normal main pipeline.
+        required: false
+        type: string
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # Non-empty `release_tag` = release-only run (tag push or dispatch with tag).
+  resolve:
+    name: Resolve release tag
+    runs-on: ubuntu-latest
+    outputs:
+      release_tag: ${{ steps.r.outputs.release_tag }}
+    steps:
+      - id: r
+        run: |
+          set -euo pipefail
+          tag=""
+          case "${{ github.event_name }}" in
+            push)
+              if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+                tag="${{ github.ref_name }}"
+              fi
+              ;;
+            workflow_dispatch)
+              tag='${{ inputs.tag }}'
+              ;;
+          esac
+          echo "release_tag=${tag}"
+          echo "release_tag=${tag}" >> "$GITHUB_OUTPUT"
+
+  commitlint:
+    name: Commit lint (conventional-commits)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    # The action lists the PR's commits through the API.
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: wagoid/commitlint-github-action@v6
+
+  lint:
+    name: Lint and format check
+    runs-on: ubuntu-latest
+    needs: [resolve]
+    if: needs.resolve.outputs.release_tag == '' && github.event_name != 'schedule'
+    steps:
+      - uses: actions/checkout@v5
+      # Toolchain comes from rust-toolchain.toml.
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          components: rustfmt, clippy
+      - name: Check code formatting
+        run: cargo fmt --all -- --check
+      - name: Run clippy (pso-poseidon code-smell set)
+        run: |
+          cargo clippy --version
+          cargo clippy --all-targets --all-features -- -D warnings \
+            -D clippy::dbg_macro \
+            -D clippy::print_stdout \
+            -D clippy::print_stderr \
+            -D clippy::todo \
+            -D clippy::unimplemented \
+            -D clippy::exit \
+            -D clippy::cast_lossless \
+            -D clippy::cast_possible_truncation \
+            -D clippy::cast_possible_wrap \
+            -D clippy::cast_precision_loss \
+            -D clippy::cast_sign_loss \
+            -D clippy::clone_on_ref_ptr \
+            -D clippy::empty_enums \
+            -D clippy::enum_glob_use \
+            -D clippy::if_not_else \
+            -D clippy::mut_mut \
+            -D clippy::non_ascii_literal \
+            -D clippy::single_match_else \
+            -D clippy::string_add \
+            -D clippy::string_add_assign \
+            -D clippy::string_lit_as_bytes \
+            -D clippy::unnecessary_unwrap \
+            -D clippy::unused_self \
+            -D clippy::useless_let_if_seq \
+            -A clippy::module_name_repetitions \
+            -A clippy::must_use_candidate \
+            -A clippy::missing_errors_doc \
+            -A clippy::missing_panics_doc \
+            -A clippy::too_many_lines \
+            -A clippy::similar_names \
+            -A clippy::inline_always \
+            -A clippy::unwrap_used \
+            -A clippy::expect_used \
+            -A clippy::panic
+      - name: Check documentation builds
+        env:
+          RUSTDOCFLAGS: -D warnings
+        run: cargo doc --no-deps --all-features --document-private-items
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    needs: [resolve]
+    if: needs.resolve.outputs.release_tag == '' && github.event_name != 'schedule'
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest
+      # Unit tests, the synthetic PKI suite, and one test per country over the
+      # committed master-list snapshot (tests/fixtures/sources).
+      - name: Test (nextest)
+        run: cargo nextest run --all-features --profile ci
+      # nextest cannot run doctests.
+      - name: cargo test --doc
+        run: cargo test --doc --all-features
+
+  # Spelling. The allow-list in typos.toml holds only checked false positives.
+  typos:
+    name: typos
+    runs-on: ubuntu-latest
+    if: github.event_name != 'schedule'
+    steps:
+      - uses: actions/checkout@v5
+      - uses: crate-ci/typos@v1.50.2
+        with:
+          config: ./typos.toml
+
+  # Supply chain: licences, sources, bans (OpenSSL is banned) and advisories,
+  # on every PR and nightly so a freshly published advisory surfaces without a
+  # push. Both gate: the one accepted advisory is ignored with a reason in
+  # deny.toml and .cargo/audit.toml.
+  supply-chain:
+    name: supply chain
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deny,cargo-audit
+      - name: cargo deny
+        run: cargo deny --all-features check all
+      # A separate RUSTSEC database revision from cargo-deny's, so a new
+      # advisory surfaces from whichever updates first.
+      - name: cargo audit
+        run: cargo audit
+
+  # Today's master lists from the publishers, through the same per-country
+  # checks as the committed snapshot. Nightly + on demand only: publisher
+  # sites are outside our control, so this never blocks a merge.
+  live-sources:
+    name: Live sources (per-country)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.tag == '')
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest
+      - name: Fetch sources
+        run: ./scripts/fetch.sh
+      - name: Per-country suite on live sources
+        env:
+          CSCA_SOURCES: sources
+        run: cargo nextest run --test countries --profile ci
+      - name: Build registry
+        run: cargo run --release -- build sources -o registry.json
+      - uses: actions/upload-artifact@v5
+        with:
+          name: registry-live
+          path: |
+            registry.json
+            sources/auto/SHA256SUMS
+          retention-days: 14
+
+  ci:
+    name: ci
+    runs-on: ubuntu-latest
+    if: always()
+    needs: [lint, test, typos, supply-chain]
+    steps:
+      - name: Check dependency results
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          set -euo pipefail
+          echo "$RESULTS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
+          if echo "$RESULTS" | jq -e 'any(.[]; .result == "failure" or .result == "cancelled")' > /dev/null; then
+            echo "::error::one or more required jobs did not succeed"
+            exit 1
+          fi
+          echo "all required jobs succeeded or were skipped"
+
+  # Cog inspects the conventional-commit log since the last tag and creates a
+  # `chore(version): vX.Y.Z` commit + tag when feat/fix/breaking commits landed.
+  tag:
+    name: Bump version & tag
+    runs-on: ubuntu-latest
+    needs: [resolve, ci]
+    if: |
+      needs.resolve.outputs.release_tag == '' &&
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/main' &&
+      !startsWith(github.event.head_commit.message, 'chore(version):') &&
+      !contains(github.event.head_commit.message, '[skip ci]')
+    outputs:
+      tag: ${{ steps.bump.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+      - name: Cocogitto bump
+        uses: cocogitto/cocogitto-action@v4
+        with:
+          command: bump
+          args: --auto
+          git-user: "github-actions[bot]"
+          git-user-email: "41898282+github-actions[bot]@users.noreply.github.com"
+      - name: Resolve created tag (if any)
+        id: bump
+        run: |
+          set -euo pipefail
+          tag="$(git tag --points-at HEAD | grep '^v' | head -n1 || true)"
+          echo "tag=${tag}"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+
+  release-binaries:
+    name: Build ${{ matrix.label }} binary
+    runs-on: ${{ matrix.runner }}
+    needs: [resolve, tag]
+    if: |
+      always() &&
+      ((needs.tag.result == 'success' && needs.tag.outputs.tag != '') ||
+       needs.resolve.outputs.release_tag != '')
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: linux-x86_64
+            runner: ubuntu-latest
+          - label: macos-aarch64
+            runner: macos-latest
+    env:
+      TAG: ${{ needs.tag.outputs.tag || needs.resolve.outputs.release_tag }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ env.TAG }}
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - name: Build
+        run: |
+          set -euo pipefail
+          cargo build --release --locked
+          mkdir -p dist
+          cp target/release/csca-registry "dist/csca-registry-${TAG}-${{ matrix.label }}"
+      - uses: actions/upload-artifact@v5
+        with:
+          name: bin-${{ matrix.label }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 1
+
+  # The registry itself is a release artifact: built from the publishers'
+  # current master lists by the tagged binary, root in the release notes.
+  release-registry:
+    name: Build registry.json
+    runs-on: ubuntu-latest
+    needs: [resolve, tag]
+    if: |
+      always() &&
+      ((needs.tag.result == 'success' && needs.tag.outputs.tag != '') ||
+       needs.resolve.outputs.release_tag != '')
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.tag.outputs.tag || needs.resolve.outputs.release_tag }}
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - name: Fetch sources and build
+        run: |
+          set -euo pipefail
+          ./scripts/fetch.sh
+          cargo run --release --locked -- build sources -o registry.json
+          cargo run --release --locked -- verify --registry registry.json
+          mkdir -p dist
+          cp registry.json dist/
+          cp sources/auto/SHA256SUMS dist/sources.SHA256SUMS
+      - uses: actions/upload-artifact@v5
+        with:
+          name: registry
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 1
+
+  # SHA256SUMS over every asset. No cosign/SLSA here (unlike pso-poseidon):
+  # this repository is private, and keyless signing writes the repo/workflow
+  # identity to the public Rekor log. Add them if the repo goes public.
+  github-release:
+    name: Create GitHub release
+    runs-on: ubuntu-latest
+    needs: [resolve, tag, release-binaries, release-registry]
+    if: |
+      always() &&
+      needs.release-binaries.result == 'success' &&
+      needs.release-registry.result == 'success'
+    env:
+      TAG: ${{ needs.tag.outputs.tag || needs.resolve.outputs.release_tag }}
+    steps:
+      - uses: actions/download-artifact@v5
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Checksums and release body
+        run: |
+          set -euo pipefail
+          cd dist
+          shasum -a 256 * > SHA256SUMS
+          cat SHA256SUMS
+          root="$(jq -r .commitment.root registry.json)"
+          {
+            echo "## Registry"
+            echo
+            echo "- root: \`${root}\`"
+            echo "- keys root: \`$(jq -r .commitment.keys_root registry.json)\`"
+            echo "- revocations root: \`$(jq -r .commitment.revocations_root registry.json)\`"
+            echo "- countries: $(jq '.countries | length' registry.json), keys: $(jq '.keys | length' registry.json), revocations: $(jq '.revocations | length' registry.json)"
+            echo
+            echo "## Artifacts"
+            echo
+            echo "- \`registry.json\` — built from the sources listed in \`sources.SHA256SUMS\`."
+            echo "- \`csca-registry-${TAG}-*\` — CLI binaries."
+            echo "- \`SHA256SUMS\` — SHA-256 of every asset."
+          } > ../RELEASE_BODY.md
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.TAG }}
+          name: ${{ env.TAG }}
+          body_path: RELEASE_BODY.md
+          generate_release_notes: true
+          files: dist/*

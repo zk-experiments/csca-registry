@@ -1,6 +1,8 @@
 #!/bin/sh
-# Downloads the master lists / CRLs that are published without a captcha.
+# Downloads the master lists / CRLs that are published without a captcha into
+# sources/auto/ and records their SHA-256 in sources/auto/SHA256SUMS.
 # ICAO PKD LDIFs need a manual download (captcha + T&C): put them in sources/icao/.
+# Standalone master lists must keep a `<publisher alpha-2>_` file-name prefix.
 set -eu
 d=sources/auto
 mkdir -p "$d"
@@ -14,4 +16,5 @@ curl -fsSL -o it.zip https://csca-ita.interno.gov.it/certificatiCSCA/IT_MasterLi
 unzip -oq it.zip && rm it.zip
 curl -fsSL -o IT_CSCA.crl https://csca-ita.interno.gov.it/certificatiCSCA/CRL_CSCA.crl
 
-ls -la
+shasum -a 256 *.ml *.crl > SHA256SUMS
+cat SHA256SUMS

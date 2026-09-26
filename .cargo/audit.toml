@@ -1,0 +1,7 @@
+# Read by `cargo audit` (CI supply-chain job). Mirrors [advisories].ignore in
+# deny.toml; keep the two in sync.
+[advisories]
+ignore = [
+  # Marvin (rsa): private-key timing leak. Public-key verification only here.
+  "RUSTSEC-2023-0071",
+]

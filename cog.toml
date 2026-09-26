@@ -1,0 +1,22 @@
+tag_prefix = "v"
+branch_whitelist = ["main"]
+ignore_merge_commits = true
+generate_mono_repository_global_tag = false
+
+# Rewrite [package].version before cog assembles its `chore(version): vX.Y.Z`
+# commit, so `csca-registry --version` matches the tag. `0,/RE/` touches only
+# the first `^version` line, which is [package].version.
+pre_bump_hooks = [
+    "sed -i '0,/^version/{s/^version.*/version = \"{{version}}\"/}' Cargo.toml",
+    "cargo update --workspace",
+]
+
+# Push the bump commit and tag so the release jobs in ci.yml pick the tag up.
+post_bump_hooks = [
+    "git push origin HEAD:main",
+    "git push origin v{{version}}",
+]
+
+[changelog]
+path = "CHANGELOG.md"
+authors = []
