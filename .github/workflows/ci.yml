@@ -12,7 +12,8 @@
 #   push:tags:["v*"]  release-only path against the named tag
 #   pull_request      lint/test/typos/supply-chain + commitlint
 #   schedule          nightly 04:00 UTC: supply-chain (fresh advisories) and
-#                     live-sources (per-country suite against today's downloads)
+#                     registry-refresh (per-country suite on today's downloads;
+#                     publishes a registry-* data release when sources changed)
 #   workflow_dispatch maintainer-named (re-)release; empty `tag` runs the main pipeline
 name: CI
 
@@ -52,17 +53,22 @@ jobs:
       release_tag: ${{ steps.r.outputs.release_tag }}
     steps:
       - id: r
+        env:
+          EVENT: ${{ github.event_name }}
+          REF: ${{ github.ref }}
+          REF_NAME: ${{ github.ref_name }}
+          INPUT_TAG: ${{ inputs.tag }}
         run: |
           set -euo pipefail
           tag=""
-          case "${{ github.event_name }}" in
+          case "$EVENT" in
             push)
-              if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
-                tag="${{ github.ref_name }}"
+              if [[ "$REF" == refs/tags/v* ]]; then
+                tag="$REF_NAME"
               fi
               ;;
             workflow_dispatch)
-              tag='${{ inputs.tag }}'
+              tag="$INPUT_TAG"
               ;;
           esac
           echo "release_tag=${tag}"
@@ -187,13 +193,23 @@ jobs:
       - name: cargo audit
         run: cargo audit
 
-  # Today's master lists from the publishers, through the same per-country
-  # checks as the committed snapshot. Nightly + on demand only: publisher
-  # sites are outside our control, so this never blocks a merge.
-  live-sources:
-    name: Live sources (per-country)
+  # Nightly data refresh. Fetches the publishers' current master lists and
+  # CRLs, runs the per-country suite on them (the gate: nothing is published
+  # from sources that fail it), builds registry.json with main's code, and
+  # publishes a `registry-YYYYMMDD-HHMM` data release only when the source
+  # checksums or the commitment root differ from the last one. Code releases
+  # (`v*`, cog) are separate. Publisher sites are outside our control, so this
+  # never blocks a merge; a failed fetch or check fails this job visibly.
+  registry-refresh:
+    name: Registry refresh (live sources)
     runs-on: ubuntu-latest
-    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.tag == '')
+    if: |
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.tag == ''))
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v5
       - uses: actions-rust-lang/setup-rust-toolchain@v1
@@ -206,14 +222,67 @@ jobs:
         env:
           CSCA_SOURCES: sources
         run: cargo nextest run --test countries --profile ci
-      - name: Build registry
-        run: cargo run --release -- build sources -o registry.json
+      - name: Build and verify registry
+        run: |
+          set -euo pipefail
+          cargo run --release --locked -- build sources -o registry.json
+          cargo run --release --locked -- verify --registry registry.json
+          mkdir -p dist
+          cp registry.json dist/
+          cp sources/auto/SHA256SUMS dist/sources.SHA256SUMS
+      - name: Compare with last data release
+        id: diff
+        run: |
+          set -euo pipefail
+          prev="$(gh release list --limit 200 --json tagName,createdAt \
+            -q '[.[] | select(.tagName | startswith("registry-"))] | sort_by(.createdAt) | last | .tagName // ""')"
+          echo "prev=${prev}" >> "$GITHUB_OUTPUT"
+          changed=true
+          if [ -n "$prev" ]; then
+            mkdir -p prev
+            gh release download "$prev" -D prev -p registry.json -p sources.SHA256SUMS
+            if cmp -s prev/sources.SHA256SUMS dist/sources.SHA256SUMS &&
+               [ "$(jq -r .commitment.root prev/registry.json)" = "$(jq -r .commitment.root dist/registry.json)" ]; then
+              changed=false
+            fi
+          fi
+          echo "changed=${changed}" >> "$GITHUB_OUTPUT"
+          echo "previous: ${prev:-none}, changed: ${changed}" | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Publish data release
+        if: steps.diff.outputs.changed == 'true'
+        env:
+          PREV: ${{ steps.diff.outputs.prev }}
+        run: |
+          set -euo pipefail
+          tag="registry-$(date -u +%Y%m%d-%H%M)"
+          cd dist
+          shasum -a 256 registry.json sources.SHA256SUMS > SHA256SUMS
+          r() { jq -r "$1" registry.json; }
+          {
+            echo "Registry built from the publishers' current sources by ${GITHUB_SHA::7}."
+            echo
+            echo "- root: \`$(r .commitment.root)\`"
+            echo "- keys root: \`$(r .commitment.keys_root)\`"
+            echo "- revocations root: \`$(r .commitment.revocations_root)\`"
+            echo "- countries: $(r '.countries | length'), keys: $(r '.keys | length'), revocations: $(r '.revocations | length')"
+            echo
+            if [ -n "$PREV" ]; then
+              echo "### Changes since ${PREV}"
+              echo
+              echo "- previous root: \`$(jq -r .commitment.root ../prev/registry.json)\`"
+              echo
+              echo '```diff'
+              diff -u ../prev/sources.SHA256SUMS sources.SHA256SUMS || true
+              echo '```'
+            fi
+          } > ../NOTES.md
+          gh release create "$tag" registry.json sources.SHA256SUMS SHA256SUMS \
+            --target "$GITHUB_SHA" --title "$tag" --notes-file ../NOTES.md --latest=false
+          echo "published ${tag}" | tee -a "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v5
         with:
           name: registry-live
-          path: |
-            registry.json
-            sources/auto/SHA256SUMS
+          path: dist/*
           retention-days: 14
 
   ci:
@@ -365,7 +434,7 @@ jobs:
         run: |
           set -euo pipefail
           cd dist
-          shasum -a 256 * > SHA256SUMS
+          shasum -a 256 -- * > SHA256SUMS
           cat SHA256SUMS
           root="$(jq -r .commitment.root registry.json)"
           {

@@ -131,6 +131,27 @@ root       = H(version, keys_root, revocations_root)
   under ICAO's chain model;
 - `prove not-revoked` holds for the DSC serial under that key.
 
+## Data releases
+
+Nightly (04:00 UTC, or on demand via *Run workflow* on `main`), CI does the following:
+
+1. Fetches the publishers' current master lists and CRLs.
+2. Runs the per-country suite on them. This is the gate: nothing is published from sources that fail it.
+3. Builds `registry.json` with `main`'s code.
+4. Publishes a **`registry-YYYYMMDD-HHMM`** GitHub release, but only if the source checksums or
+   the commitment root changed since the previous `registry-*` release.
+
+Each release carries `registry.json`, `sources.SHA256SUMS` and `SHA256SUMS`. Its notes give the
+new and previous roots and a diff of the source checksums. Consumers, such as the circuit
+prover or the job that updates the on-chain root, take the newest `registry-*` release:
+
+```sh
+gh release list -R zk-experiments/csca-registry --json tagName,createdAt \
+  -q '[.[]|select(.tagName|startswith("registry-"))]|sort_by(.createdAt)|last|.tagName'
+```
+
+Code releases (`v*`, cut by cog) are separate and also attach a registry built at release time.
+
 ## Development
 
 The conventions are psonet's:
