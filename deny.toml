@@ -1,0 +1,57 @@
+# cargo-deny configuration. Run locally with `cargo deny check`.
+#
+# Same four questions as every psonet repo: are the licences ones we may ship,
+# do sources resolve to registries we trust, are duplicate versions under
+# control, and is anything in the tree the subject of a published advisory.
+
+[graph]
+all-features = true
+
+[advisories]
+version = 2
+yanked = "deny"
+# Each entry needs a reason and, where one exists, the upgrade that retires it.
+ignore = [
+  # Marvin: non-constant-time RSA *private-key* operations (decrypt/sign) leak
+  # timing. This crate only verifies signatures with public keys from public
+  # certificates; no private key is ever loaded. Unpatched in rsa 0.9.10 and
+  # 0.10.0-rc.18; revisit when RustCrypto/RSA#626 closes.
+  { id = "RUSTSEC-2023-0071", reason = "public-key verification only; no private-key operations" },
+]
+
+[bans]
+# Warn, not deny: arkworks 0.6 (pso-poseidon's field) is on the digest 0.10 /
+# rand_core 0.6 line, rsa 0.9 on der 0.7 / signature 2, while the 0.14 curve
+# crates are on digest 0.11 / signature 3. None of these can be unified from
+# here; promote to deny once ark-* and rsa 0.10 ship on the new line.
+multiple-versions = "warn"
+wildcards = "deny"
+highlight = "all"
+deny = [
+  # Crypto here is RustCrypto end to end (rsa, p256/p384/p521, bp256/bp384,
+  # primefield/primeorder for brainpoolP512r1). OpenSSL arriving transitively
+  # would mean a second, C, X.509/CMS stack deciding what verifies.
+  { name = "openssl" },
+  { name = "openssl-sys" },
+]
+skip = []
+skip-tree = []
+
+[licenses]
+version = 2
+confidence-threshold = 0.93
+private = { ignore = true }
+unused-allowed-license = "warn"
+allow = [
+  "MIT",
+  "Apache-2.0",
+  "Apache-2.0 WITH LLVM-exception",
+  "BSD-2-Clause",
+  "BSD-3-Clause",
+  "Unicode-3.0",
+]
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-git = []

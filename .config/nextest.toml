@@ -1,0 +1,13 @@
+# nextest profiles. `cargo nextest run` picks `default`; CI passes `--profile ci`.
+
+[profile.default]
+# A wedged test otherwise burns the job's whole wall clock.
+slow-timeout = { period = "5m", terminate-after = 1 }
+
+[profile.ci]
+# Report every failure in one run rather than stopping at the first.
+fail-fast = false
+test-threads = "num-cpus"
+
+[profile.ci.junit]
+path = "junit.xml"

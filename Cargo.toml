@@ -1,8 +1,95 @@
 [package]
 name = "csca-registry"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
+rust-version = "1.94"
+description = "Combined, signature-checked eMRTD CSCA registry (ICAO PKD + national master lists) with a Poseidon2 Merkle commitment"
+license = "MIT"
+repository = "https://github.com/zk-experiments/csca-registry"
+publish = false
+
+[[bin]]
+name = "csca-registry"
+path = "src/main.rs"
+
+[lib]
+name = "csca_registry"
+path = "src/lib.rs"
+
+# One test binary per country: libtest-mimic generates a trial for every
+# country found in the sources, so a regression names the country.
+[[test]]
+name = "countries"
+harness = false
 
 [dependencies]
-openssl = "0.10.81"
-serde_json = "1.0.151"
+# Poseidon2 over BN254, bit-compatible with noir's in-circuit `poseidon2`.
+pso-poseidon = "0.4"
+ark-bn254 = "0.6"
+ark-ff = "0.6"
+
+# X.509 / CRL field access. CMS SignedData and EC domain parameters are walked
+# with the in-crate DER reader (src/der.rs).
+x509-parser = "0.18"
+
+# Signature verification: RustCrypto only, no OpenSSL (see deny.toml).
+# brainpoolP512r1 has no RustCrypto crate; src/crypto/bp512.rs assembles it
+# from primefield + primeorder the same way bp256/bp384 are built.
+rsa = { version = "0.9", default-features = false, features = ["std"] }
+sha1 = { version = "0.10", features = ["oid"] }
+sha2 = { version = "0.10", features = ["oid"] }
+ecdsa = { version = "0.17", default-features = false, features = ["algorithm", "std"] }
+elliptic-curve = { version = "0.14", default-features = false, features = ["arithmetic", "sec1", "std"] }
+primefield = "0.14"
+primeorder = "0.14"
+p256 = { version = "0.14", default-features = false, features = ["ecdsa", "std"] }
+p384 = { version = "0.14", default-features = false, features = ["ecdsa", "std"] }
+p521 = { version = "0.14", default-features = false, features = ["ecdsa", "std"] }
+bp256 = { version = "0.14", default-features = false, features = ["arithmetic", "ecdsa", "std"] }
+bp384 = { version = "0.14", default-features = false, features = ["arithmetic", "ecdsa", "std"] }
+
+clap = { version = "4", features = ["derive", "env"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+anyhow = "1.0"
+thiserror = "2.0"
+hex = "0.4"
+base64 = "0.22"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[dev-dependencies]
+libtest-mimic = "0.8"
+tempfile = "3"
+
+# Signature checks over ~700 certificates are slow unoptimised (bp512 uses
+# the crypto-bigint backend); optimise dependencies even in dev/test builds.
+[profile.dev.package."*"]
+opt-level = 3
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+strip = "debuginfo"
+
+# Same lint levels as psonet/pso-chain (RS-S1, RS-L1..L3). Thresholds live in
+# clippy.toml; CI adds the pso-poseidon code-smell set on top.
+[lints.rust]
+unsafe_code = "deny"
+missing_debug_implementations = "warn"
+redundant_imports = "warn"
+trivial_numeric_casts = "warn"
+unused_lifetimes = "warn"
+
+[lints.clippy]
+dbg_macro = "deny"
+print_stdout = "deny"
+print_stderr = "deny"
+unimplemented = "deny"
+exit = "deny"
+panic = "warn"
+unwrap_used = "warn"
+
+[lints.rustdoc]
+all = "warn"
