@@ -100,7 +100,8 @@ revocation = H(issuer key_hash, H(pack(serial)))
 root       = H(version, keys_root, revocations_root)
 ```
 
-- `H` is noir's `std::hash::poseidon2`.
+- `H` is `Poseidon2::hash` from `noir-lang/poseidon` v0.3.0 (the sponge Barretenberg uses; note `pso-poseidon`'s own `hash` differs when the input length is a multiple of 3, so `commitment.rs` builds the sponge on its permutation).
+- Circuits verify against the commitment with the Noir library in [`noir/csca_registry`](noir/csca_registry/README.md); import it by git tag, never re-implement the leaf.
 - `pack` is zkpassport's `packBeBytesIntoFields(bytes, 31)`.
 - Leaves are sorted ascending; empty slots are zero.
 - Revocation non-membership is proven by two adjacent leaves bracketing the target, using zkpassport's rules.

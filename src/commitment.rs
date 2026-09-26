@@ -20,7 +20,7 @@
 use anyhow::{bail, Context, Result};
 use ark_bn254::Fr;
 use ark_ff::{BigInteger, PrimeField};
-use pso_poseidon::{Poseidon2, PoseidonHasher};
+use pso_poseidon::Poseidon2;
 
 /// Leaf/root format version.
 pub const LEAF_VERSION: u8 = 2;
@@ -31,11 +31,39 @@ pub const KEY_TREE_HEIGHT: usize = 16;
 /// Revocation tree height (16 384 leaves).
 pub const REVOCATION_TREE_HEIGHT: usize = 14;
 
-/// Poseidon2 sponge over BN254, bit-identical to noir's `poseidon2::hash`.
+/// Poseidon2 sponge over BN254, bit-identical to `noir-lang/poseidon`
+/// `Poseidon2::hash(input, len)` (and Barretenberg): iv = len << 64 in the
+/// capacity, absorb rate-3 chunks with a permutation after each full chunk,
+/// and a final permutation only when the last chunk is partial (or len = 0).
+///
+/// Uses `pso-poseidon`'s permutation, not its `hash`: that sponge always adds
+/// a squeeze permutation, which differs from the Noir library whenever `len`
+/// is a multiple of 3 (e.g. the 3-input root, P-256 and RSA-2048 key hashes).
 pub fn poseidon2(inputs: &[Fr]) -> Fr {
-    Poseidon2::<Fr>::new()
-        .hash(inputs)
-        .expect("the Poseidon2 sponge is infallible")
+    const RATE: usize = 3;
+    let p = Poseidon2::<Fr>::new();
+    let len = u64::try_from(inputs.len()).expect("input length fits u64");
+    let mut state = [
+        Fr::from(0u64),
+        Fr::from(0u64),
+        Fr::from(0u64),
+        Fr::from(len) * Fr::from(1u128 << 64),
+    ];
+    let mut chunks = inputs.chunks_exact(RATE);
+    for chunk in &mut chunks {
+        for (s, x) in state.iter_mut().zip(chunk) {
+            *s += x;
+        }
+        state = p.permutation(&state);
+    }
+    let rest = chunks.remainder();
+    for (s, x) in state.iter_mut().zip(rest) {
+        *s += x;
+    }
+    if inputs.is_empty() || !rest.is_empty() {
+        state = p.permutation(&state);
+    }
+    state[0]
 }
 
 /// zkpassport `packBeBytesIntoFields(bytes, 31)`: 31-byte big-endian chunks,
@@ -303,6 +331,13 @@ mod tests {
         // Same known answer pso-poseidon locks against `nargo execute`.
         let h: Fr = MontFp!("0x038682aa1cb5ae4e0a3f13da432a95c77c5c111f6f030faf9cad641ce1ed7383");
         assert_eq!(poseidon2(&[Fr::from(1u64), Fr::from(2u64)]), h);
+        // len % 3 == 0: no trailing permutation (`nargo test` prints this value
+        // for noir-lang/poseidon v0.3.0 `Poseidon2::hash([1, 2, 3], 3)`).
+        let h3: Fr = MontFp!("0x23864adb160dddf590f1d3303683ebcb914f828e2635f6e85a32f0a1aecd3dd8");
+        assert_eq!(
+            poseidon2(&[Fr::from(1u64), Fr::from(2u64), Fr::from(3u64)]),
+            h3
+        );
     }
 
     #[test]
