@@ -9,6 +9,7 @@
 pub mod cert;
 pub mod commands;
 pub mod commitment;
+pub mod country;
 pub mod crypto;
 pub mod der;
 pub mod ldif;

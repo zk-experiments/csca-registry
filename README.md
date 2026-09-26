@@ -94,7 +94,7 @@ The output is deterministic for the same inputs. It has these sections:
 ```text
 key_hash   = H(pack(key material))           RSA modulus | EC x||y
 key leaf   = H(header, key_hash)             one leaf per (key, period)
-header     = be(version:1 | type=1:1 | country:2 | key_type:1 | curve:1
+header     = be(version:2 | type=1:1 | country:3 | key_type:1 | curve:1
                 | bits:2 | exponent:4 | open:8 | close:8)
 revocation = H(issuer key_hash, H(pack(serial)))
 root       = H(version, keys_root, revocations_root)
@@ -105,6 +105,7 @@ root       = H(version, keys_root, revocations_root)
 - Leaves are sorted ascending; empty slots are zero.
 - Revocation non-membership is proven by two adjacent leaves bracketing the target, using zkpassport's rules.
 - Curve ids are rows of `src/crypto/curves.rs` + 1. For example, 18 = brainpoolP512r1.
+- `country` is the ICAO three-letter code a circuit compares with the MRZ issuing state (`src/country.rs`: ISO 3166-1 alpha-3 plus ICAO issuer codes such as `EUE`, `UNO`, `RKS`, `XOM`; the MRZ writes Germany as `D<<`, which circuits normalise to `DEU`). An issuer without a code is committed as `XX_`, which can never match an MRZ.
 
 **Validity on date D:** the document is valid if all of these hold:
 - the document's expiry (DG1) is on or after D;

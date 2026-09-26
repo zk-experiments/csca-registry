@@ -8,8 +8,8 @@
 //! ```text
 //! key_hash   = H(pack(key material))                  RSA modulus | EC x||y
 //! key leaf   = H(header, key_hash)                    one per (key, period)
-//! header     = be(version:1 | type=1:1 | country:2 | key_type:1 | curve:1
-//!                 | bits:2 | exponent:4 | open:8 | close:8)       28 bytes
+//! header     = be(version:1 | type=1:1 | country:3 | key_type:1 | curve:1
+//!                 | bits:2 | exponent:4 | open:8 | close:8)       29 bytes
 //! revocation = H(issuer key_hash, H(pack(serial)))
 //! root       = H(version, keys_root, revocations_root)
 //! ```
@@ -23,7 +23,7 @@ use ark_ff::{BigInteger, PrimeField};
 use pso_poseidon::{Poseidon2, PoseidonHasher};
 
 /// Leaf/root format version.
-pub const LEAF_VERSION: u8 = 1;
+pub const LEAF_VERSION: u8 = 2;
 /// Certificate type committed in key leaves (zkpassport's `CERT_TYPE_CSCA`).
 pub const CERT_TYPE_CSCA: u8 = 1;
 /// Key tree height (65 536 leaves).
@@ -68,8 +68,8 @@ pub fn key_hash(material: &[u8]) -> Fr {
 /// Fields of a key leaf besides the key itself.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct KeyHeader {
-    /// Upper-case alpha-2 country.
-    pub country: [u8; 2],
+    /// ICAO three-letter country code (ISO alpha-3, or an ICAO issuer code).
+    pub country: [u8; 3],
     /// 1 = RSA, 2 = EC.
     pub key_type: u8,
     /// Curve id (`crypto::Curve::id`), 0 for RSA.
@@ -92,6 +92,7 @@ impl KeyHeader {
             CERT_TYPE_CSCA,
             self.country[0],
             self.country[1],
+            self.country[2],
             self.key_type,
             self.curve,
         ];
