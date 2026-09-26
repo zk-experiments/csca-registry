@@ -1091,9 +1091,9 @@ dependencies = [
 
 [[package]]
 name = "pso-poseidon"
-version = "0.4.0"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3f9ea1abeb062c615e6fe9759bb03cca7e391f56020dc8225137a4201e56164b"
+checksum = "e939fd64360c03ef6507a6e6a0ef497dcb97648575c459b071447ee041b59b2d"
 dependencies = [
  "ark-bn254",
  "ark-ff",

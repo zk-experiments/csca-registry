@@ -24,7 +24,7 @@ harness = false
 
 [dependencies]
 # Poseidon2 over BN254, bit-compatible with noir's in-circuit `poseidon2`.
-pso-poseidon = "0.4"
+pso-poseidon = "0.5"
 ark-bn254 = "0.6"
 ark-ff = "0.6"
 

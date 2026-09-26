@@ -30,39 +30,12 @@ pub const KEY_TREE_HEIGHT: usize = 16;
 /// Revocation tree height (16 384 leaves).
 pub const REVOCATION_TREE_HEIGHT: usize = 14;
 
-/// Poseidon2 sponge over BN254, bit-identical to `noir-lang/poseidon`
-/// `Poseidon2::hash(input, len)` (and Barretenberg): iv = len << 64 in the
-/// capacity, absorb rate-3 chunks with a permutation after each full chunk,
-/// and a final permutation only when the last chunk is partial (or len = 0).
-///
-/// Uses `pso-poseidon`'s permutation, not its `hash`: that sponge always adds
-/// a squeeze permutation, which differs from the Noir library whenever `len`
-/// is a multiple of 3 (e.g. the 3-input root, P-256 and RSA-2048 key hashes).
+/// Poseidon2 sponge over BN254, bit-identical to `noir-lang/poseidon`'s
+/// `Poseidon2::hash(input, len)` (and Barretenberg): `pso-poseidon`'s
+/// [`Poseidon2::hash_noir`]. Not `PoseidonHasher::hash`, whose extra final
+/// permutation differs whenever the input length is a multiple of 3.
 pub fn poseidon2(inputs: &[Fr]) -> Fr {
-    const RATE: usize = 3;
-    let p = Poseidon2::<Fr>::new();
-    let len = u64::try_from(inputs.len()).expect("input length fits u64");
-    let mut state = [
-        Fr::from(0u64),
-        Fr::from(0u64),
-        Fr::from(0u64),
-        Fr::from(len) * Fr::from(1u128 << 64),
-    ];
-    let mut chunks = inputs.chunks_exact(RATE);
-    for chunk in &mut chunks {
-        for (s, x) in state.iter_mut().zip(chunk) {
-            *s += x;
-        }
-        state = p.permutation(&state);
-    }
-    let rest = chunks.remainder();
-    for (s, x) in state.iter_mut().zip(rest) {
-        *s += x;
-    }
-    if inputs.is_empty() || !rest.is_empty() {
-        state = p.permutation(&state);
-    }
-    state[0]
+    Poseidon2::<Fr>::new().hash_noir(inputs)
 }
 
 /// Packs big-endian bytes into fields: 31-byte big-endian chunks,

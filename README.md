@@ -98,7 +98,7 @@ revocation = H(issuer key_hash, H(pack(serial)))
 root       = H(version, keys_root, revocations_root)
 ```
 
-- `H` is `Poseidon2::hash` from `noir-lang/poseidon` v0.3.0 (the sponge Barretenberg uses; note `pso-poseidon`'s own `hash` differs when the input length is a multiple of 3, so `commitment.rs` builds the sponge on its permutation).
+- `H` is `Poseidon2::hash` from `noir-lang/poseidon` v0.3.0, the sponge Barretenberg uses; the Rust side calls `pso-poseidon`'s `Poseidon2::hash_noir` (0.5+), not its `hash`, which differs when the input length is a multiple of 3.
 - Circuits verify against the commitment with the Noir library in [`noir/csca_registry`](noir/csca_registry/README.md); import it by git tag, never re-implement the leaf.
 - `pack` splits big-endian bytes into 31-byte chunks, the short chunk taken from the front, least significant chunk first.
 - Leaves are sorted ascending; empty slots are zero.
