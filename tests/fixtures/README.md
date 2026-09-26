@@ -2,8 +2,7 @@
 
 ## sources/ — real master lists (snapshot)
 
-Inputs to the per-country suite (`tests/countries.rs`). Public files, fetched
-2026-09-27 by `scripts/fetch.sh`; refresh by re-running it and copying.
+Inputs to the per-country suite (`tests/countries.rs`). Public files, fetched 2026-09-27 by `scripts/fetch.sh`; refresh by re-running it and copying.
 
 | file | publisher | sha256 |
 |---|---|---|
@@ -13,7 +12,4 @@ Inputs to the per-country suite (`tests/countries.rs`). Public files, fetched
 
 ## synthetic/ — generated PKI
 
-`gen.py` (needs the `openssl` CLI; the crate does not) writes an ICAO-style
-LDIF with a master list, a CRL and two DSCs for country XA (RSA-PSS), an
-explicit-parameter brainpoolP512r1 CSCA with a brainpoolP384r1 link
-certificate for XB, and `XA_forged.ml` whose signer chains to XB.
+`gen.py` (needs the `openssl` CLI; the crate does not) writes an ICAO-style LDIF with a master list, a CRL and two DSCs for country XA (RSA-PSS), an explicit-parameter brainpoolP512r1 CSCA with a brainpoolP384r1 link certificate for XB, and `XA_forged.ml` whose signer chains to XB.
