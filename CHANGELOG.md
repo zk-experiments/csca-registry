@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.3.1 - 2026-09-27
+#### Bug Fixes
+- (**noir**) accept exclusion proofs against an empty revocation tree - (5b11c86) - Anton Velichko
+
+- - -
+
 ## v0.3.0 - 2026-09-26
 #### Features
 - <span style="background-color: #d73a49; color: white; padding: 2px 6px; border-radius: 3px; font-weight: bold; font-size: 0.85em;">BREAKING</span>ship the Noir registry verifier and match noir-lang Poseidon2 - (b38f6eb) - Anton Velichko
