@@ -13,7 +13,7 @@ It is the first building block for verifying encrypted identity-document envelop
 ## Usage
 
 ```sh
-./scripts/fetch.sh                                  # DE, IT, NL, SE and ICAO (pinned) master lists, IT, NL and SE CRLs -> sources/auto/
+./scripts/fetch.sh                                  # DE, IT, NL, SE and ICAO (pinned) master lists, 83 CSCA CRLs -> sources/auto/
 # optional: ICAO PKD LDIFs (captcha + T&C, manual) -> sources/icao/
 #   https://pkddownload.icao.int  "eMRTD CSCA ML" (master lists)
 #                                 "eMRTD PKI Objects" (CRLs + DSCs -> dsc_* country profile)
@@ -35,7 +35,7 @@ cargo run --release -- prove not-revoked --issuer-key <key id> --serial <hex>
 | `*.cer/.crt/.der/.pem` | Loose certificates, trusted as operator-provided (`status: manual`). |
 
 
-`fetch.sh` downloads every master list published without a captcha or terms to accept, Germany's (BSI), Italy's, the Netherlands' (NPKD) and Sweden's (Swedish Police Authority), plus those three countries' CSCA CRLs, and the ICAO Master List (signed by the United Nations CSCA, hence `UN_`). ICAO's download page sits behind its terms and a captcha, so `fetch.sh` pins one edition by URL and SHA-256: when ICAO issues a new one, accept the terms at icao.int/icao-pkd/icao-master-list and update both. Together they hold CSCA keys of 137 countries. The PKD LDIFs (with the lists Switzerland and Hungary publish through ICAO, and DSCs) stay manual inputs (`sources/icao/`).
+`fetch.sh` downloads every master list published without a captcha or terms to accept, Germany's (BSI), Italy's, the Netherlands' (NPKD) and Sweden's (Swedish Police Authority), and the ICAO Master List (signed by the United Nations CSCA, hence `UN_`). ICAO's download page sits behind its terms and a captcha, so `fetch.sh` pins one edition by URL and SHA-256: when ICAO issues a new one, accept the terms at icao.int/icao-pkd/icao-master-list and update both. Together they hold CSCA keys of 137 countries. It also downloads the CSCA CRLs listed in `scripts/crls.txt`: the CRL distribution points named in the CSCA certificates, for 66 countries, each verified by a registry key before use. A CRL that can't be fetched is skipped with a warning, and the nightly refresh refuses to publish a registry that lost any revocation the previous release had. The PKD LDIFs (with the lists Switzerland and Hungary publish through ICAO, and DSCs) stay manual inputs (`sources/icao/`).
 ## Trust model
 
 A master list contributes certificates only if both checks pass:

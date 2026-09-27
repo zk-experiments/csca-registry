@@ -267,6 +267,16 @@ jobs:
           if [ -n "$prev" ]; then
             mkdir -p prev
             gh release download "$prev" -D prev -p registry.json -p sources.SHA256SUMS
+            # A CRL that couldn't be fetched must not un-revoke anything:
+            # every revocation of the last release must still be there.
+            jq -r '.revocations[] | "\(.issuer_key) \(.serial)"' prev/registry.json | sort -u > prev.revoked
+            jq -r '.revocations[] | "\(.issuer_key) \(.serial)"' dist/registry.json | sort -u > new.revoked
+            lost="$(comm -23 prev.revoked new.revoked)"
+            if [ -n "$lost" ]; then
+              echo "::error::revocations of ${prev} are missing (a CRL failed to download?):"
+              echo "$lost"
+              exit 1
+            fi
             if cmp -s prev/sources.SHA256SUMS dist/sources.SHA256SUMS &&
                [ "$(jq -r .commitment.root prev/registry.json)" = "$(jq -r .commitment.root dist/registry.json)" ]; then
               changed=false
