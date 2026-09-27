@@ -2,6 +2,17 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.5.0 - 2026-09-27
+#### Features
+- (**fetch**) fetch the CSCA CRLs their certificates point to - (cc9ca84) - Anton Velichko
+- (**fetch**) add Sweden's master list and CSCA CRL - (e8df65c) - Anton Velichko
+#### Bug Fixes
+- (**ci**) read R2_ACCOUNT_ID from a variable or a secret - (a9c48b3) - Anton Velichko
+#### Tests
+- snapshot the CSCA CRLs and regenerate the Noir vectors - (227b62d) - Anton Velichko
+
+- - -
+
 ## v0.4.0 - 2026-09-27
 #### Features
 - (**fetch**) add the ICAO Master List - (64a38fe) - Anton Velichko
