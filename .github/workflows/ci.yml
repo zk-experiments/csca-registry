@@ -279,6 +279,8 @@ jobs:
         if: steps.diff.outputs.changed == 'true'
         env:
           PREV: ${{ steps.diff.outputs.prev }}
+          # The R2 mirror (next step) serves the release here.
+          REGISTRY_URL: ${{ vars.R2_REGISTRY_BUCKET != '' && 'https://registry.zk-eid.dev' || '' }}
         run: |
           set -euo pipefail
           tag="registry-$(date -u +%Y%m%d-%H%M)"
@@ -293,6 +295,15 @@ jobs:
             echo "- revocations root: \`$(r .commitment.revocations_root)\`"
             echo "- countries: $(r '.countries | length'), keys: $(r '.keys | length'), revocations: $(r '.revocations | length')"
             echo
+            if [ -n "$REGISTRY_URL" ]; then
+              echo "### Download"
+              echo
+              echo "- [\`registry.json\`](${REGISTRY_URL}/${tag}/registry.json), [\`SHA256SUMS\`](${REGISTRY_URL}/${tag}/SHA256SUMS), [\`sources.SHA256SUMS\`](${REGISTRY_URL}/${tag}/sources.SHA256SUMS)"
+              echo "- latest release: ${REGISTRY_URL}/latest/registry.json (pointer: ${REGISTRY_URL}/latest/latest.json)"
+              echo
+              echo "The mirror isn't a trust anchor: check \`registry.json\` against \`SHA256SUMS\` and its root against the one you trust."
+              echo
+            fi
             if [ -n "$PREV" ]; then
               echo "### Changes since ${PREV}"
               echo
