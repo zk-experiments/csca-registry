@@ -13,7 +13,9 @@
 #   pull_request      lint/test/typos/supply-chain + commitlint
 #   schedule          nightly 04:00 UTC: supply-chain (fresh advisories) and
 #                     registry-refresh (per-country suite on today's downloads;
-#                     publishes a registry-* data release when sources changed)
+#                     publishes a registry-* data release when sources changed,
+#                     and mirrors the latest one to the R2 registry,
+#                     https://registry.zk-eid.dev)
 #   workflow_dispatch maintainer-named (re-)release; empty `tag` runs the main pipeline
 name: CI
 
@@ -273,9 +275,12 @@ jobs:
           echo "changed=${changed}" >> "$GITHUB_OUTPUT"
           echo "previous: ${prev:-none}, changed: ${changed}" | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Publish data release
+        id: publish
         if: steps.diff.outputs.changed == 'true'
         env:
           PREV: ${{ steps.diff.outputs.prev }}
+          # The R2 mirror (next step) serves the release here.
+          REGISTRY_URL: ${{ vars.R2_REGISTRY_BUCKET != '' && 'https://registry.zk-eid.dev' || '' }}
         run: |
           set -euo pipefail
           tag="registry-$(date -u +%Y%m%d-%H%M)"
@@ -290,6 +295,15 @@ jobs:
             echo "- revocations root: \`$(r .commitment.revocations_root)\`"
             echo "- countries: $(r '.countries | length'), keys: $(r '.keys | length'), revocations: $(r '.revocations | length')"
             echo
+            if [ -n "$REGISTRY_URL" ]; then
+              echo "### Download"
+              echo
+              echo "- [\`registry.json\`](${REGISTRY_URL}/${tag}/registry.json), [\`SHA256SUMS\`](${REGISTRY_URL}/${tag}/SHA256SUMS), [\`sources.SHA256SUMS\`](${REGISTRY_URL}/${tag}/sources.SHA256SUMS)"
+              echo "- latest release: ${REGISTRY_URL}/latest/registry.json (pointer: ${REGISTRY_URL}/latest/latest.json)"
+              echo
+              echo "The mirror isn't a trust anchor: check \`registry.json\` against \`SHA256SUMS\` and its root against the one you trust."
+              echo
+            fi
             if [ -n "$PREV" ]; then
               echo "### Changes since ${PREV}"
               echo
@@ -303,6 +317,42 @@ jobs:
           gh release create "$tag" registry.json sources.SHA256SUMS SHA256SUMS \
             --target "$GITHUB_SHA" --title "$tag" --notes-file ../NOTES.md --latest=false
           echo "published ${tag}" | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+      # Mirror the latest data release (new or not) to the R2 registry served at
+      # https://registry.zk-eid.dev: <tag>/{registry.json, sources.SHA256SUMS,
+      # SHA256SUMS}, immutable, then latest/ (short cache) pointing at it.
+      # Idempotent, so the first run also backfills the current release.
+      - uses: actions/setup-node@v5
+        if: vars.R2_REGISTRY_BUCKET != ''
+        with:
+          node-version: 22
+      - name: Publish to the R2 registry
+        if: vars.R2_REGISTRY_BUCKET != '' && (steps.publish.outputs.tag != '' || steps.diff.outputs.prev != '')
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.R2_REGISTRY_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.R2_ACCOUNT_ID }}
+          BUCKET: ${{ vars.R2_REGISTRY_BUCKET }}
+          TAG: ${{ steps.publish.outputs.tag || steps.diff.outputs.prev }}
+        run: |
+          set -euo pipefail
+          rm -rf r2 && mkdir r2
+          gh release download "$TAG" -D r2 -p registry.json -p sources.SHA256SUMS -p SHA256SUMS
+          (cd r2 && shasum -a 256 -c SHA256SUMS)
+          put() {
+            npx --yes wrangler@4 r2 object put "$BUCKET/$1" --file "$2" --remote \
+              --content-type "$3" --cache-control "$4"
+          }
+          for f in registry.json sources.SHA256SUMS SHA256SUMS; do
+            case "$f" in *.json) type=application/json ;; *) type=text/plain ;; esac
+            put "$TAG/$f" "r2/$f" "$type" "public, max-age=31536000, immutable"
+          done
+          jq -n --arg tag "$TAG" --arg root "$(jq -r .commitment.root r2/registry.json)" \
+            '{tag: $tag, root: $root}' > r2/latest.json
+          for f in registry.json sources.SHA256SUMS SHA256SUMS latest.json; do
+            case "$f" in *.json) type=application/json ;; *) type=text/plain ;; esac
+            put "latest/$f" "r2/$f" "$type" "public, max-age=300"
+          done
+          echo "R2 registry: https://registry.zk-eid.dev/$TAG/registry.json (latest/ -> $TAG)" | tee -a "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v5
         with:
           name: registry-live

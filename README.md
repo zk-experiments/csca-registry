@@ -120,6 +120,7 @@ Nightly (04:00 UTC, or on demand via *Run workflow* on `main`), CI does the foll
 2. Runs the per-country suite on them. This is the gate: nothing is published from sources that fail it.
 3. Builds `registry.json` with `main`'s code.
 4. Publishes a **`registry-YYYYMMDD-HHMM`** GitHub release, but only if the source checksums or the commitment root changed since the previous `registry-*` release.
+5. Mirrors the newest `registry-*` release to the public registry at `https://registry.zk-eid.dev` (Cloudflare R2), whether or not step 4 published a new one.
 
 Each release carries `registry.json`, `sources.SHA256SUMS` and `SHA256SUMS`. Its notes give the new and previous roots and a diff of the source checksums. Consumers, such as the circuit prover or the job that updates the on-chain root, take the newest `registry-*` release:
 
@@ -127,6 +128,16 @@ Each release carries `registry.json`, `sources.SHA256SUMS` and `SHA256SUMS`. Its
 gh release list -R zk-experiments/csca-registry --json tagName,createdAt \
   -q '[.[]|select(.tagName|startswith("registry-"))]|sort_by(.createdAt)|last|.tagName'
 ```
+
+Or, with no GitHub access, from the public registry:
+
+- `https://registry.zk-eid.dev/latest/latest.json`: `{"tag", "root"}` of the newest release (cached for 5 minutes);
+- `https://registry.zk-eid.dev/latest/registry.json` (and `sources.SHA256SUMS`, `SHA256SUMS`): its files;
+- `https://registry.zk-eid.dev/<tag>/registry.json`: any mirrored release, immutable.
+
+Check `registry.json` against `SHA256SUMS`, and its root against the one you trust (on-chain, say): the registry host is a mirror, not a trust anchor.
+
+CI publishes with the organization settings `R2_REGISTRY_TOKEN` (secret: a Cloudflare API token with R2 write access), `R2_REGISTRY_BUCKET` and `R2_ACCOUNT_ID` (variables; the account ID is shared with eid-circuits' bucket). Without the bucket variable the step is skipped.
 
 Code releases (`v*`, cut by cog) are separate and also attach a registry built at release time.
 
