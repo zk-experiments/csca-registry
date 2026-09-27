@@ -2,6 +2,19 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.4.0 - 2026-09-27
+#### Features
+- (**fetch**) add the ICAO Master List - (64a38fe) - Anton Velichko
+- (**fetch**) add the Netherlands' master list and CSCA CRL - (76de480) - Anton Velichko
+#### Continuous Integration
+- upload to R2 through its S3 API with the bucket-scoped token - (f39b9d7) - Anton Velichko
+- link data releases to their registry downloads - (292cba2) - Anton Velichko
+- read the Cloudflare account from the shared R2_ACCOUNT_ID - (c8aa8e3) - Anton Velichko
+- mirror the newest data release to the R2 registry - (ec22c45) - Anton Velichko
+- test the Noir library with nargo 1.0.0-rc.3 - (274e964) - Anton Velichko
+
+- - -
+
 ## v0.3.1 - 2026-09-27
 #### Bug Fixes
 - (**noir**) accept exclusion proofs against an empty revocation tree - (5b11c86) - Anton Velichko

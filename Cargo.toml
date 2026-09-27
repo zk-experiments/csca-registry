@@ -1,6 +1,6 @@
 [package]
 name = "csca-registry"
-version = "0.3.1"
+version = "0.4.0"
 edition = "2021"
 rust-version = "1.94"
 description = "Combined, signature-checked eMRTD CSCA registry (ICAO PKD + national master lists) with a Poseidon2 Merkle commitment"
