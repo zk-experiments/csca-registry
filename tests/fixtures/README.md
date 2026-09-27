@@ -7,13 +7,11 @@ Inputs to the per-country suite (`tests/countries.rs`). Public files, fetched 20
 | file | publisher | sha256 |
 |---|---|---|
 | `DE_ML_2026-08-19-10-28-54.ml` | BSI (DE), bsi.bund.de/csca | `b0dfa486ef25ab2d…` |
-| `IT_CSCA.crl` | Ministero dell'Interno (IT), csca-ita.interno.gov.it | `6beacbc84fa75941…` |
 | `IT_MasterListCSCA.ml` | Ministero dell'Interno (IT), csca-ita.interno.gov.it | `70eeab7edd6cd41d…` |
-| `NL_CSCA.crl` | NPKD (NL), crl.npkd.nl | `0e6388d0df1d6c60…` |
 | `NL_MasterList.ml` | NPKD (NL), npkd.nl/masterlist.html | `65c155933710e2af…` |
-| `SE_CSCA.crl` | Swedish Police Authority (SE), cert.polisen.se/CSCA | `d7190dd4a22b596a…` |
 | `SE_MasterList.ml` | Swedish Police Authority (SE), cert.polisen.se/CSCA | `3394c81496d711ed…` |
 | `UN_ICAO_ML.ml` | ICAO Master List, signed by the UN CSCA (icao.int/icao-pkd/icao-master-list, edition 2026-09-24) | `baad83a907529f9b…` |
+| `<CC>_<host_path>.crl` (83) | the CSCA CRLs of `scripts/crls.txt` | see `sources/auto/SHA256SUMS` after `fetch.sh` |
 
 ## un-csca-2012.der
 
