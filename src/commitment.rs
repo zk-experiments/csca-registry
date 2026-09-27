@@ -259,15 +259,17 @@ pub struct Exclusion {
 impl Exclusion {
     /// Checks the bracket against `root`: both paths reach it, the slots are
     /// adjacent, and the leaves strictly bound `target` (upper may be the zero
-    /// slot past the end; without a lower bound, upper must be slot 0).
+    /// slot past the end; without a lower bound, upper must be slot 0, which is
+    /// zero only in an empty tree).
     pub fn verify(&self, root: Fr) -> bool {
         let zero = Fr::from(0u64);
         if self.upper.root() != root {
             return false;
         }
         match &self.lower {
+            // A zero leaf in slot 0 means the tree is empty (canonical packing).
             None => {
-                self.upper.index == 0 && self.upper.leaf != zero && self.target < self.upper.leaf
+                self.upper.index == 0 && (self.upper.leaf == zero || self.target < self.upper.leaf)
             }
             Some(lower) => {
                 lower.root() == root
@@ -354,5 +356,16 @@ mod tests {
         let z1 = poseidon2(&[Fr::from(0u64), Fr::from(0u64)]);
         assert_eq!(t.root(), poseidon2(&[z1, z1]));
         assert_eq!(from_hex(&to_hex(&t.root())).unwrap(), t.root());
+    }
+
+    #[test]
+    fn empty_tree_excludes_everything() {
+        let t = Tree::new(vec![], 4).unwrap();
+        let ex = t.exclusion(Fr::from(7u64)).unwrap();
+        assert_eq!((ex.upper.index, ex.upper.leaf), (0, Fr::from(0u64)));
+        assert!(ex.verify(t.root()));
+        // A non-empty tree has no zero slot 0 to claim emptiness with.
+        let full = Tree::new(vec![Fr::from(9u64)], 4).unwrap();
+        assert!(!ex.verify(full.root()));
     }
 }
