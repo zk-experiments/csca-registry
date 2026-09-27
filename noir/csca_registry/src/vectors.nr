@@ -2,11 +2,11 @@
 
 use crate::{Exclusion, KeyHeader, MerklePath};
 
-pub(crate) global ROOT: Field = 0x28558aa4f2032c7ad900c9898581b091e54f2cd89765cd02daf60c0cd511ab1c;
+pub(crate) global ROOT: Field = 0x1a23d2ddd182777cf9ecf0ae6aa463f8e39460b4ad78e9b28cfa8e57057cac7e;
 pub(crate) global KEYS_ROOT: Field =
     0x0555bd21c48bc73a5ee5afdbd8ed3533cee3c736291a7df43e2f44996fec8d96;
 pub(crate) global REVOCATIONS_ROOT: Field =
-    0x3022a0c9f13430e2db04b834ba5f47a6592b945d4ab339c2a2deb666ef860d71;
+    0x3044d75e937b4867426f8e18a31d42a42fe079260cec897bf3fe3c41cb9dca12;
 
 // DE EC-brainpoolP512r1 key f425ca7924999053620df735c1952a801182f1e09baa6459451785181ced581c
 pub(crate) global DE_KEY: [u8; 128] = [
@@ -154,10 +154,10 @@ pub(crate) fn exclusion_before() -> Exclusion<14> {
         upper: MerklePath {
             index: 0,
             siblings: [
-                0x182df730c1bbe0cd76959fd79228b92bec65781ad1f35def50cedeb0bae157e4,
-                0x0b63a53787021a4a962a452c2921b3663aff1ffd8d5510540f8e659e782956f1,
-                0x0e34ac2c09f45a503d2908bcb12f1cbae5fa4065759c88d501c097506a8b2290,
-                0x21f9172d72fdcdafc312eee05cf5092980dda821da5b760a9fb8dbdf607c8a20,
+                0x0ab6248b88a41e9742b24dc8e3cfaf847b1a0a6e4a45693b0e8095a818489450,
+                0x115f22601965f22ebb5c917e9fbdd70d3e4649ae031edf6f146804b767adee4a,
+                0x28e597ab425977e0ba877493c1e5936f2bc13323556e84cdead9ddd008fe920c,
+                0x08402ccda8ac1f6efc648eadcf3eeb9aae42649f61c0c821ce866e8e9c94d848,
                 0x2373ea368857ec7af97e7b470d705848e2bf93ed7bef142a490f2119bcf82d8e,
                 0x120157cfaaa49ce3da30f8b47879114977c24b266d58b0ac18b325d878aafddf,
                 0x01c28fe1059ae0237b72334700697bdf465e03df03986fe05200cadeda66bd76,
@@ -180,14 +180,14 @@ pub(crate) global SERIAL_BETWEEN: [u8; 20] = [
 pub(crate) fn exclusion_between() -> Exclusion<14> {
     Exclusion {
         has_lower: true,
-        lower_leaf: 0x052c013f76e9a427b8167e491e8c1d2176026c26269b70537f36b8e7097006f1,
+        lower_leaf: 0x108e7a487ea858c6fca0b4022af801ac527099faf60aa64082dff548e9d93bec,
         lower: MerklePath {
-            index: 0,
+            index: 3,
             siblings: [
-                0x182df730c1bbe0cd76959fd79228b92bec65781ad1f35def50cedeb0bae157e4,
-                0x0b63a53787021a4a962a452c2921b3663aff1ffd8d5510540f8e659e782956f1,
-                0x0e34ac2c09f45a503d2908bcb12f1cbae5fa4065759c88d501c097506a8b2290,
-                0x21f9172d72fdcdafc312eee05cf5092980dda821da5b760a9fb8dbdf607c8a20,
+                0x0d6863af828e9ebdd1ecd1b6fcaebe655ecf13ea5302934d3af89290f56f3285,
+                0x142348e65129336be878bf271ad8b4dd08752eaf7a7decbb214c1d8b83b824c4,
+                0x28e597ab425977e0ba877493c1e5936f2bc13323556e84cdead9ddd008fe920c,
+                0x08402ccda8ac1f6efc648eadcf3eeb9aae42649f61c0c821ce866e8e9c94d848,
                 0x2373ea368857ec7af97e7b470d705848e2bf93ed7bef142a490f2119bcf82d8e,
                 0x120157cfaaa49ce3da30f8b47879114977c24b266d58b0ac18b325d878aafddf,
                 0x01c28fe1059ae0237b72334700697bdf465e03df03986fe05200cadeda66bd76,
@@ -200,14 +200,14 @@ pub(crate) fn exclusion_between() -> Exclusion<14> {
                 0x1c4954081e324939350febc2b918a293ebcdaead01be95ec02fcbe8d2c1635d1,
             ],
         },
-        upper_leaf: 0x182df730c1bbe0cd76959fd79228b92bec65781ad1f35def50cedeb0bae157e4,
+        upper_leaf: 0x1231db6bedffa444a4f2cd5305d1312dc4ddeab716c5c48027632db8d4120fdc,
         upper: MerklePath {
-            index: 1,
+            index: 4,
             siblings: [
-                0x052c013f76e9a427b8167e491e8c1d2176026c26269b70537f36b8e7097006f1,
-                0x0b63a53787021a4a962a452c2921b3663aff1ffd8d5510540f8e659e782956f1,
-                0x0e34ac2c09f45a503d2908bcb12f1cbae5fa4065759c88d501c097506a8b2290,
-                0x21f9172d72fdcdafc312eee05cf5092980dda821da5b760a9fb8dbdf607c8a20,
+                0x160e1de9c0d4ae46419daa60f501994531034c5572ba9767a0d7638e52aa351e,
+                0x228ec87766593be5024921269b4a2c920bbacb23047c828db3055dd5d4feea66,
+                0x08a4b69c7c67083a94f3189814693913463e294f6c5864a33b444f2c964744d1,
+                0x08402ccda8ac1f6efc648eadcf3eeb9aae42649f61c0c821ce866e8e9c94d848,
                 0x2373ea368857ec7af97e7b470d705848e2bf93ed7bef142a490f2119bcf82d8e,
                 0x120157cfaaa49ce3da30f8b47879114977c24b266d58b0ac18b325d878aafddf,
                 0x01c28fe1059ae0237b72334700697bdf465e03df03986fe05200cadeda66bd76,
@@ -225,19 +225,19 @@ pub(crate) fn exclusion_between() -> Exclusion<14> {
 
 pub(crate) global SERIAL_AFTER: [u8; 20] = [
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x03,
+    0x00, 0x00, 0x00, 0x08,
 ];
 pub(crate) fn exclusion_after() -> Exclusion<14> {
     Exclusion {
         has_lower: true,
-        lower_leaf: 0x182df730c1bbe0cd76959fd79228b92bec65781ad1f35def50cedeb0bae157e4,
+        lower_leaf: 0x2efc66f65cb8c671af0ba9e2db7298e31f5aa694cd95ce96ecde26012c409242,
         lower: MerklePath {
-            index: 1,
+            index: 13,
             siblings: [
-                0x052c013f76e9a427b8167e491e8c1d2176026c26269b70537f36b8e7097006f1,
+                0x2a0d4e287561819183864c0f5d446ef2513b54da4a8d8335351170c7c21dd2d6,
                 0x0b63a53787021a4a962a452c2921b3663aff1ffd8d5510540f8e659e782956f1,
-                0x0e34ac2c09f45a503d2908bcb12f1cbae5fa4065759c88d501c097506a8b2290,
-                0x21f9172d72fdcdafc312eee05cf5092980dda821da5b760a9fb8dbdf607c8a20,
+                0x0e084d91890ecce730888c90cc2e159e1a87be4299c51154c6c8cadcf2afb225,
+                0x0fa631aed5674e7f44f5295dc8dfce13812c114ad51bc038f7d5804b808bd0cb,
                 0x2373ea368857ec7af97e7b470d705848e2bf93ed7bef142a490f2119bcf82d8e,
                 0x120157cfaaa49ce3da30f8b47879114977c24b266d58b0ac18b325d878aafddf,
                 0x01c28fe1059ae0237b72334700697bdf465e03df03986fe05200cadeda66bd76,
@@ -252,12 +252,12 @@ pub(crate) fn exclusion_after() -> Exclusion<14> {
         },
         upper_leaf: 0x0000000000000000000000000000000000000000000000000000000000000000,
         upper: MerklePath {
-            index: 2,
+            index: 14,
             siblings: [
                 0x0000000000000000000000000000000000000000000000000000000000000000,
-                0x0cfb4d7bee187098207eae7ceeda139126f5cafaded32ea656f87a618bc3490e,
-                0x0e34ac2c09f45a503d2908bcb12f1cbae5fa4065759c88d501c097506a8b2290,
-                0x21f9172d72fdcdafc312eee05cf5092980dda821da5b760a9fb8dbdf607c8a20,
+                0x190ebca9d4f8718d51e8c90b7af8f173137703ac0ad1a3b6641b59d28bb249a1,
+                0x0e084d91890ecce730888c90cc2e159e1a87be4299c51154c6c8cadcf2afb225,
+                0x0fa631aed5674e7f44f5295dc8dfce13812c114ad51bc038f7d5804b808bd0cb,
                 0x2373ea368857ec7af97e7b470d705848e2bf93ed7bef142a490f2119bcf82d8e,
                 0x120157cfaaa49ce3da30f8b47879114977c24b266d58b0ac18b325d878aafddf,
                 0x01c28fe1059ae0237b72334700697bdf465e03df03986fe05200cadeda66bd76,

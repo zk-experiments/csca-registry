@@ -11,6 +11,8 @@ Inputs to the per-country suite (`tests/countries.rs`). Public files, fetched 20
 | `IT_MasterListCSCA.ml` | Ministero dell'Interno (IT), csca-ita.interno.gov.it | `70eeab7edd6cd41d…` |
 | `NL_CSCA.crl` | NPKD (NL), crl.npkd.nl | `0e6388d0df1d6c60…` |
 | `NL_MasterList.ml` | NPKD (NL), npkd.nl/masterlist.html | `65c155933710e2af…` |
+| `SE_CSCA.crl` | Swedish Police Authority (SE), cert.polisen.se/CSCA | `d7190dd4a22b596a…` |
+| `SE_MasterList.ml` | Swedish Police Authority (SE), cert.polisen.se/CSCA | `3394c81496d711ed…` |
 | `UN_ICAO_ML.ml` | ICAO Master List, signed by the UN CSCA (icao.int/icao-pkd/icao-master-list, edition 2026-09-24) | `baad83a907529f9b…` |
 
 ## un-csca-2012.der
