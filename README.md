@@ -137,7 +137,7 @@ Or, with no GitHub access, from the public registry:
 
 Check `registry.json` against `SHA256SUMS`, and its root against the one you trust (on-chain, say): the registry host is a mirror, not a trust anchor.
 
-CI publishes with the repository settings `R2_REGISTRY_TOKEN` (secret: a Cloudflare API token with R2 write access), `R2_REGISTRY_BUCKET` and `R2_REGISTRY_ACCOUNT_ID` (variables). Without the bucket variable the step is skipped.
+CI publishes with the organization settings `R2_REGISTRY_TOKEN` (secret: a Cloudflare API token with R2 write access), `R2_REGISTRY_BUCKET` and `R2_ACCOUNT_ID` (variables; the account ID is shared with eid-circuits' bucket). Without the bucket variable the step is skipped.
 
 Code releases (`v*`, cut by cog) are separate and also attach a registry built at release time.
 
