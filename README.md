@@ -13,7 +13,7 @@ It is the first building block for verifying encrypted identity-document envelop
 ## Usage
 
 ```sh
-./scripts/fetch.sh                                  # DE (BSI) + IT master lists, IT CRL -> sources/auto/
+./scripts/fetch.sh                                  # DE (BSI), IT and NL (NPKD) master lists, IT and NL CRLs -> sources/auto/
 # optional: ICAO PKD LDIFs (captcha + T&C, manual) -> sources/icao/
 #   https://pkddownload.icao.int  "eMRTD CSCA ML" (master lists)
 #                                 "eMRTD PKI Objects" (CRLs + DSCs -> dsc_* country profile)
@@ -34,6 +34,8 @@ cargo run --release -- prove not-revoked --issuer-key <key id> --serial <hex>
 | `*.crl` | CRL, DER or PEM. |
 | `*.cer/.crt/.der/.pem` | Loose certificates, trusted as operator-provided (`status: manual`). |
 
+
+`fetch.sh` downloads every national master list published without a captcha or terms to accept: Germany's (BSI), Italy's and the Netherlands' (NPKD), plus Italy's and the Netherlands' CSCA CRLs. Together they hold CSCA keys of 136 countries. The ICAO Master List, and the lists Switzerland and Hungary publish through ICAO, sit behind ICAO's terms, so they are manual inputs (`sources/icao/`), like the PKD LDIFs.
 ## Trust model
 
 A master list contributes certificates only if both checks pass:

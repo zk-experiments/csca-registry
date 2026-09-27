@@ -8,13 +8,16 @@ d=sources/auto
 mkdir -p "$d"
 cd "$d"
 
-rm -f DE_ML_*.ml
+rm -f DE_ML_*.ml NL_MasterList.ml
 curl -fsSL -o de.zip 'https://www.bsi.bund.de/SharedDocs/Downloads/DE/BSI/ElekAusweise/CSCA/GermanMasterList.zip?__blob=publicationFile'
 unzip -oq de.zip && rm de.zip
 
 curl -fsSL -o it.zip https://csca-ita.interno.gov.it/certificatiCSCA/IT_MasterListCSCA.zip
 unzip -oq it.zip && rm it.zip
 curl -fsSL -o IT_CSCA.crl https://csca-ita.interno.gov.it/certificatiCSCA/CRL_CSCA.crl
+# Netherlands (NPKD): a CMS master list (.mls) and the Dutch CSCA's CRL.
+curl -fsSL -o NL_MasterList.ml https://www.npkd.nl/files/ml/NL_MASTERLIST.mls
+curl -fsSL -o NL_CSCA.crl http://crl.npkd.nl/crls/NLD.crl
 
 shasum -a 256 *.ml *.crl > SHA256SUMS
 cat SHA256SUMS
