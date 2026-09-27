@@ -139,11 +139,24 @@ impl Crl {
 }
 
 fn country(name: &X509Name<'_>) -> Option<String> {
-    name.iter_country()
+    let c = name
+        .iter_country()
         .next()
         .and_then(|c| c.as_str().ok())
         .map(|s| s.trim().to_uppercase())
-        .filter(|s| !s.is_empty())
+        .filter(|s| !s.is_empty())?;
+    // The United Nations' first CSCA (2012-2022, in the ICAO Master List)
+    // wrote the user-assigned `ZZ`; its laissez-passers carry UNO like the
+    // current `C=UN` CSCA's. Any other `ZZ` stays an unknown issuer.
+    let united_nations = name.iter_organization().any(|o| {
+        o.as_str()
+            .is_ok_and(|o| o.trim().eq_ignore_ascii_case("United Nations"))
+    });
+    Some(if c == "ZZ" && united_nations {
+        "UN".into()
+    } else {
+        c
+    })
 }
 
 /// Case- and whitespace-insensitive name: countries mix PrintableString and
@@ -209,6 +222,16 @@ fn generalized_time(b: &[u8]) -> Option<i64> {
 #[cfg(test)]
 mod tests {
     use super::generalized_time;
+
+    /// The United Nations' first CSCA writes `C=ZZ`; it's still the UN
+    /// (committed as UNO), so documents it vouched for can be proven.
+    #[test]
+    fn united_nations_zz_csca_is_un() {
+        let c =
+            super::Cert::from_der(include_bytes!("../tests/fixtures/un-csca-2012.der")).unwrap();
+        assert_eq!(c.country, "UN");
+        assert_eq!(crate::country::alpha3(&c.country), Some("UNO"));
+    }
 
     #[test]
     fn generalized_time_to_unix() {
