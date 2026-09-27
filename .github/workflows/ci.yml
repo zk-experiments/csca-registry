@@ -329,7 +329,8 @@ jobs:
         if: vars.R2_REGISTRY_BUCKET != '' && (steps.publish.outputs.tag != '' || steps.diff.outputs.prev != '')
         env:
           TOKEN: ${{ secrets.R2_REGISTRY_TOKEN }}
-          ACCOUNT: ${{ vars.R2_ACCOUNT_ID }}
+          # A variable or, if it was saved as one, a secret.
+          ACCOUNT: ${{ vars.R2_ACCOUNT_ID || secrets.R2_ACCOUNT_ID }}
           BUCKET: ${{ vars.R2_REGISTRY_BUCKET }}
           TAG: ${{ steps.publish.outputs.tag || steps.diff.outputs.prev }}
           AWS_DEFAULT_REGION: auto
@@ -337,6 +338,7 @@ jobs:
           AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
         run: |
           set -euo pipefail
+          [ -n "$ACCOUNT" ] || { echo "::error::R2_ACCOUNT_ID is not set (variable or secret)"; exit 1; }
           id=""
           for url in "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT/tokens/verify" \
                      "https://api.cloudflare.com/client/v4/user/tokens/verify"; do
