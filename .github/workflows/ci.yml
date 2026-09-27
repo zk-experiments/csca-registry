@@ -322,24 +322,38 @@ jobs:
       # https://registry.zk-eid.dev: <tag>/{registry.json, sources.SHA256SUMS,
       # SHA256SUMS}, immutable, then latest/ (short cache) pointing at it.
       # Idempotent, so the first run also backfills the current release.
-      - uses: actions/setup-node@v5
-        if: vars.R2_REGISTRY_BUCKET != ''
-        with:
-          node-version: 22
+      # R2_REGISTRY_TOKEN is scoped to the registry bucket, which only R2's S3
+      # API honours: its S3 credentials are the token's id and the SHA-256 of
+      # its value (Cloudflare's documented derivation).
       - name: Publish to the R2 registry
         if: vars.R2_REGISTRY_BUCKET != '' && (steps.publish.outputs.tag != '' || steps.diff.outputs.prev != '')
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.R2_REGISTRY_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ vars.R2_ACCOUNT_ID }}
+          TOKEN: ${{ secrets.R2_REGISTRY_TOKEN }}
+          ACCOUNT: ${{ vars.R2_ACCOUNT_ID }}
           BUCKET: ${{ vars.R2_REGISTRY_BUCKET }}
           TAG: ${{ steps.publish.outputs.tag || steps.diff.outputs.prev }}
+          AWS_DEFAULT_REGION: auto
+          AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+          AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
         run: |
           set -euo pipefail
+          id=""
+          for url in "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT/tokens/verify" \
+                     "https://api.cloudflare.com/client/v4/user/tokens/verify"; do
+            id="$(curl -fsS -H "Authorization: Bearer $TOKEN" "$url" | jq -r '.result.id // empty' || true)"
+            [ -n "$id" ] && break
+          done
+          [ -n "$id" ] || { echo "::error::R2_REGISTRY_TOKEN doesn't verify with Cloudflare"; exit 1; }
+          export AWS_ACCESS_KEY_ID="$id"
+          AWS_SECRET_ACCESS_KEY="$(printf '%s' "$TOKEN" | sha256sum | cut -d' ' -f1)"
+          export AWS_SECRET_ACCESS_KEY
+          echo "::add-mask::$AWS_SECRET_ACCESS_KEY"
+          endpoint="https://$ACCOUNT.r2.cloudflarestorage.com"
           rm -rf r2 && mkdir r2
           gh release download "$TAG" -D r2 -p registry.json -p sources.SHA256SUMS -p SHA256SUMS
           (cd r2 && shasum -a 256 -c SHA256SUMS)
           put() {
-            npx --yes wrangler@4 r2 object put "$BUCKET/$1" --file "$2" --remote \
+            aws s3 cp "$2" "s3://$BUCKET/$1" --endpoint-url "$endpoint" --only-show-errors \
               --content-type "$3" --cache-control "$4"
           }
           for f in registry.json sources.SHA256SUMS SHA256SUMS; do
