@@ -9,7 +9,7 @@ d=sources/auto
 mkdir -p "$d"
 cd "$d"
 
-rm -f DE_ML_*.ml NL_MasterList.ml UN_ICAO_ML.ml
+rm -f DE_ML_*.ml NL_MasterList.ml SE_MasterList.ml UN_ICAO_ML.ml
 curl -fsSL -o de.zip 'https://www.bsi.bund.de/SharedDocs/Downloads/DE/BSI/ElekAusweise/CSCA/GermanMasterList.zip?__blob=publicationFile'
 unzip -oq de.zip && rm de.zip
 
@@ -19,6 +19,9 @@ curl -fsSL -o IT_CSCA.crl https://csca-ita.interno.gov.it/certificatiCSCA/CRL_CS
 # Netherlands (NPKD): a CMS master list (.mls) and the Dutch CSCA's CRL.
 curl -fsSL -o NL_MasterList.ml https://www.npkd.nl/files/ml/NL_MASTERLIST.mls
 curl -fsSL -o NL_CSCA.crl http://crl.npkd.nl/crls/NLD.crl
+# Sweden (Swedish Police Authority, cert.polisen.se/CSCA): master list and CRL.
+curl -fsSL -o SE_MasterList.ml http://cert.polisen.se/CSCA/SWE.ml
+curl -fsSL -o SE_CSCA.crl http://cert.polisen.se/CSCA/SWE.crl
 # ICAO Master List (CSCAs of ICAO PKD participants, signed by the United
 # Nations CSCA, hence UN_). Its download page sits behind ICAO's terms and a
 # captcha, so the edition is pinned: when ICAO issues a new one, accept the
