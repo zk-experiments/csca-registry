@@ -58,7 +58,7 @@ Chains are resolved by hand. An issuer is looked up by canonical DN and by AKIâ†
 | `issuer-missing` | No source carries the issuer, usually a link certificate from a retired key. Still trusted via the signed list that carried it. |
 | `invalid` / `unsupported` | The certificate's own issuer (AKI-matched, or itself when self-signed) failed or could not be checked. The per-country tests fail on either. |
 
-CRLs are applied only if a registry key verifies them.
+CRLs are applied only if a registry key verifies them. Revocations are permanent: `build --carry-revocations <previous registry.json>` keeps every revocation of that registry that no CRL lists any more (a country dropped it, or its CRL couldn't be fetched), as long as its issuer key is still in the registry; its `source` names the CRL it came from and the registry it was carried from.
 
 ## Cryptography
 
@@ -86,7 +86,7 @@ The output is deterministic for the same inputs. It has these sections:
   - `key_hash`: Poseidon2 of the key material.
   - Leaf header fields.
   - `periods[]`: disjoint `[open, close]` windows, each with its `leaf` and `index`.
-- `revocations[]`: `(issuer key, serial)` pairs from verified CRLs, each with its `leaf` and `index`.
+- `revocations[]`: `(issuer key, serial)` pairs from verified CRLs and, with `--carry-revocations`, from the previous registry, each with its `leaf` and `index`.
 - `sources[]`: every input with its sha256, status, anchor and signer scheme.
 
 ## Commitment
@@ -120,15 +120,15 @@ Nightly (04:00 UTC, or on demand via *Run workflow* on `main`), CI does the foll
 
 1. Fetches the publishers' current master lists and CRLs.
 2. Runs the per-country suite on them. This is the gate: nothing is published from sources that fail it.
-3. Builds `registry.json` with `main`'s code.
+3. Builds `registry.json` with `main`'s code, carrying over the previous `registry-*` release's revocations. It refuses to publish if one of them is still missing (its issuer key left the registry).
 4. Publishes a **`registry-YYYYMMDD-HHMM`** GitHub release, but only if the source checksums or the commitment root changed since the previous `registry-*` release.
 5. Mirrors the newest `registry-*` release to the public registry at `https://registry.zk-eid.dev` (Cloudflare R2), whether or not step 4 published a new one.
 
 Each release carries `registry.json`, `sources.SHA256SUMS` and `SHA256SUMS`. Its notes give the new and previous roots and a diff of the source checksums. Consumers, such as the circuit prover or the job that updates the on-chain root, take the newest `registry-*` release:
 
 ```sh
-gh release list -R zk-experiments/csca-registry --json tagName,createdAt \
-  -q '[.[]|select(.tagName|startswith("registry-"))]|sort_by(.createdAt)|last|.tagName'
+gh release list -R zk-experiments/csca-registry --json tagName,publishedAt \
+  -q '[.[]|select(.tagName|startswith("registry-"))]|sort_by(.publishedAt)|last|.tagName'
 ```
 
 Or, with no GitHub access, from the public registry:

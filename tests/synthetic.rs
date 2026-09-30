@@ -14,7 +14,7 @@ fn fixtures() -> PathBuf {
 fn build() -> (tempfile::TempDir, PathBuf, Registry) {
     let dir = tempfile::TempDir::new().expect("temp dir");
     let out = dir.path().join("registry.json");
-    let reg = handle_build(&[fixtures()], &out).expect("build");
+    let reg = handle_build(&[fixtures()], &out, None).expect("build");
     (dir, out, reg)
 }
 
@@ -127,4 +127,44 @@ fn commits_revocations_and_proves_non_revocation() {
         (reg.commitment.root.as_str(), key.periods[0].leaf.as_str())
     );
     assert!(prove::prove_key(&reg, &key.id, key.periods[0].close + 1).is_err());
+}
+
+/// A revocation of the previous release that no CRL lists any more is kept,
+/// its source marked as carried (once, however many releases carry it); one
+/// whose issuer key has left the registry is dropped.
+#[test]
+fn carries_revocations_no_crl_lists_any_more() {
+    let (dir, _p, reg) = build();
+    let mut prev = reg.clone();
+    let mut gone = prev.revocations[0].clone();
+    gone.serial = "2002".into();
+    gone.source = "sources/XA.crl (carried from 0xolder)".into();
+    let mut orphan = gone.clone();
+    orphan.issuer_key = "00".repeat(32);
+    orphan.serial = "3003".into();
+    prev.revocations.extend([gone, orphan]);
+    let prev_path = dir.path().join("prev.json");
+    std::fs::write(&prev_path, serde_json::to_vec(&prev).unwrap()).unwrap();
+
+    let out = dir.path().join("carried.json");
+    let reg2 = handle_build(&[fixtures()], &out, Some(&prev_path)).expect("build");
+    let serials: Vec<_> = reg2.revocations.iter().map(|r| r.serial.as_str()).collect();
+    assert_eq!(serials.len(), 2, "{serials:?}");
+    assert!(
+        serials.contains(&"1001") && serials.contains(&"2002"),
+        "{serials:?}"
+    );
+    let carried = reg2
+        .revocations
+        .iter()
+        .find(|r| r.serial == "2002")
+        .unwrap();
+    assert_eq!(
+        carried.source,
+        format!("sources/XA.crl (carried from {})", reg.commitment.root)
+    );
+    let xa_key = cert(&reg2, "XA", "root").key.id.clone().unwrap();
+    assert!(prove::prove_not_revoked(&reg2, &xa_key, "2002").is_err());
+    assert_ne!(reg2.commitment.root, reg.commitment.root);
+    prove::handle_verify(&out).expect("commitment reproduces");
 }

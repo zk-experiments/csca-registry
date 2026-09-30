@@ -22,7 +22,11 @@ fn main() -> anyhow::Result<()> {
         .init();
 
     match Cli::parse().command {
-        Commands::Build { sources, output } => build::handle_build(&sources, &output).map(drop),
+        Commands::Build {
+            sources,
+            output,
+            carry_revocations,
+        } => build::handle_build(&sources, &output, carry_revocations.as_deref()).map(drop),
         Commands::Verify { registry } => prove::handle_verify(&registry).map(drop),
         Commands::Prove { action } => match action {
             ProveCommands::Key {
