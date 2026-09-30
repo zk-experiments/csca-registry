@@ -41,6 +41,11 @@ pub enum Commands {
         /// Output JSON path
         #[arg(short, long, default_value = "registry.json")]
         output: PathBuf,
+
+        /// A previous registry.json whose revocations are kept when no CRL
+        /// lists them any more (revocations are permanent)
+        #[arg(long)]
+        carry_revocations: Option<PathBuf>,
     },
     /// Rebuild the Merkle trees from a registry's leaves and check its roots
     Verify {

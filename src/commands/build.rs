@@ -5,11 +5,20 @@ use crate::registry::Builder;
 use anyhow::{Context, Result};
 use std::path::{Path, PathBuf};
 
-/// Builds the registry from `sources` and writes it to `output`.
-pub fn handle_build(sources: &[PathBuf], output: &Path) -> Result<Registry> {
+/// Builds the registry from `sources` and writes it to `output`, keeping the
+/// revocations of the registry at `carry` (a previous release) that no CRL
+/// lists any more.
+pub fn handle_build(sources: &[PathBuf], output: &Path, carry: Option<&Path>) -> Result<Registry> {
     let mut builder = Builder::default();
     for s in sources {
         builder.add_path(s)?;
+    }
+    if let Some(p) = carry {
+        let prev: Registry = serde_json::from_slice(
+            &std::fs::read(p).with_context(|| format!("read {}", p.display()))?,
+        )
+        .with_context(|| format!("parse {}", p.display()))?;
+        builder.carry_revocations(&prev);
     }
     let registry = builder.finish()?;
     let mut json = serde_json::to_string_pretty(&registry)?;

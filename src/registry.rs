@@ -21,6 +21,7 @@ pub struct Builder {
     crls: Vec<(String, Crl)>,
     dscs: Vec<Cert>,
     sources: Vec<Source>,
+    carried: Vec<(String, Revocation)>,
 }
 
 impl Builder {
@@ -108,6 +109,15 @@ impl Builder {
             }
         }
         self.push_source(src);
+    }
+
+    /// Keeps `prev`'s revocations: a revoked certificate stays revoked when a
+    /// later CRL no longer lists it (or can't be fetched). Applied in
+    /// [`Builder::finish`] for issuer keys still in the registry.
+    pub fn carry_revocations(&mut self, prev: &output::Registry) {
+        let from = prev.commitment.root.clone();
+        self.carried
+            .extend(prev.revocations.iter().map(|r| (from.clone(), r.clone())));
     }
 
     /// Adds a CRL; applied in [`Builder::finish`] if a registry key verifies it.
@@ -222,6 +232,38 @@ impl Builder {
             crl_sources.push(src);
         }
         crl_sources.into_iter().for_each(|s| self.push_source(s));
+        for (from, r) in std::mem::take(&mut self.carried) {
+            let Ok(serial) = hex::decode(&r.serial) else {
+                continue;
+            };
+            let entry = (r.issuer_key.clone(), serial);
+            if revoked.contains_key(&entry) {
+                continue;
+            }
+            let issuer = std::iter::once(&r.issuer_fingerprint)
+                .chain(self.certs.keys())
+                .find(|fp| {
+                    self.certs.get(*fp).is_some_and(|(c, _)| {
+                        key_id(c.key.as_ref().ok()).as_deref() == Some(r.issuer_key.as_str())
+                    })
+                });
+            let Some(fp) = issuer else {
+                tracing::warn!(issuer = %r.issuer_key, serial = %r.serial, "carried revocation's issuer key isn't in the registry; dropped");
+                continue;
+            };
+            let source = match r.source.split_once(" (carried from ") {
+                Some((s, _)) => s.to_string(),
+                None => r.source.clone(),
+            };
+            revoked.insert(
+                entry,
+                (
+                    r.revoked_at,
+                    format!("{source} (carried from {from})"),
+                    fp.clone(),
+                ),
+            );
+        }
 
         let mut certificates = vec![];
         let mut countries: BTreeMap<String, Country> = BTreeMap::new();
