@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.5.1 - 2026-09-30
+#### Bug Fixes
+- carry revocations over from the previous release - (8043e46) - Anton Velichko
+
+- - -
+
 ## v0.5.0 - 2026-09-27
 #### Features
 - (**fetch**) fetch the CSCA CRLs their certificates point to - (cc9ca84) - Anton Velichko
